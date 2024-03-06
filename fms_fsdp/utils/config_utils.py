@@ -49,6 +49,12 @@ def get_model_config(model_variant):
         )
     elif model_variant == "7b":
         llama_config = LLaMAConfig()
+    elif model_variant == "1b":
+        llama_config = LLaMAConfig(
+            emb_dim=2048,
+            nlayers=16,
+            nheads=16,
+            hidden_grow_factor=2.6875,
     else:
         raise ValueError(f"model variant {model_variant} not supported.")
 
