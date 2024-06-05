@@ -78,6 +78,9 @@ def train(
     start = time.time()
     loop_start = time.time()
     train_loss = -1
+    mask = torch.ones(cfg.seq_length, cfg.seq_length, device=model.device).tril()
+    mask = mask - torch.ones_like(mask).tril(diagonal=-64)
+    mask = mask[None].expand(cfg.batch_size, 1, 1)
     for batch_idx, (input, label) in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
@@ -85,7 +88,7 @@ def train(
         label = label.to(local_rank)
 
         optimizer.zero_grad()
-        output = model(input)
+        output = model(input, mask=mask)
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output.view(-1, output.size(-1)), label.view(-1).long())
