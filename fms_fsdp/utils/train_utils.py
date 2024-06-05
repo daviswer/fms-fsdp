@@ -80,7 +80,7 @@ def train(
     train_loss = -1
     mask = torch.ones(cfg.seq_length, cfg.seq_length, device=ddp_stats.device).triu()
     mask = mask - torch.ones_like(mask).triu(diagonal=64)
-    mask = mask[None].expand(cfg.batch_size, -1, -1)
+    mask = mask.bool()[None].expand(cfg.batch_size, -1, -1)
     for batch_idx, (input, label) in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
