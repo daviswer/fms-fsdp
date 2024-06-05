@@ -78,7 +78,7 @@ def train(
     start = time.time()
     loop_start = time.time()
     train_loss = -1
-    mask = torch.ones(cfg.seq_length, cfg.seq_length, device=model.device).tril()
+    mask = torch.ones(cfg.seq_length, cfg.seq_length, device=ddp_stats.device).tril()
     mask = mask - torch.ones_like(mask).tril(diagonal=-64)
     mask = mask[None].expand(cfg.batch_size, 1, 1)
     for batch_idx, (input, label) in enumerate(train_loader, start=start_step + 1):
