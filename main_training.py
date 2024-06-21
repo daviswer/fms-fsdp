@@ -25,6 +25,7 @@ from fms_fsdp.utils.train_utils import (
 
 class Bigram(nn.Module):
     def __init__(self, d, v):
+        super().__init__()
         self.emb = nn.Embedding(v,d)
         self.head = nn.Linear(d,v,bias=False)
 
