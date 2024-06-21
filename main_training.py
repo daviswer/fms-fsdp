@@ -8,6 +8,7 @@ from fms.models.llama import LLaMA, LLaMABlock
 from torch import distributed as dist
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.optim.lr_scheduler import LambdaLR
+import torch.nn as nn
 
 from fms_fsdp import config
 from fms_fsdp.utils.checkpointing_utils import Checkpointer
@@ -20,6 +21,19 @@ from fms_fsdp.utils.train_utils import (
     setup_environ_flags,
     train,
 )
+
+
+class Bigram(nn.Module):
+    def __init__(self, d, v):
+        self.emb = nn.Embedding(v,d)
+        self.head = nn.Linear(d,v,bias=False)
+
+    def reset_parameters(self):
+        nn.init.trunc_normal_(self.emb.weight, mean=0.0, std=0.02)
+        nn.init.trunc_normal_(self.head.weight, mean=0.0, std=0.02)
+
+    def forward(self, x, **kwargs):
+        return self.head(self.emb(x))
 
 
 def main(**kwargs):
@@ -59,9 +73,9 @@ def main(**kwargs):
     llama_config = get_model_config(cfg.model_variant)
     if cfg.low_cpu_fsdp:
         with torch.device("meta"):
-            model = LLaMA(llama_config)
+            model = Bigram(llama_config.emb_dim, llama_config.src_vocab_size) #LLaMA(llama_config)
     else:
-        model = LLaMA(llama_config)
+        model = Bigram(llama_config.emb_dim, llama_config.src_vocab_size) #LLaMA(llama_config)
         model.reset_parameters()
 
     if rank == 0:
