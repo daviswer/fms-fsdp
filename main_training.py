@@ -26,16 +26,16 @@ from fms_fsdp.utils.train_utils import (
 class Bigram(nn.Module):
     def __init__(self, d, v):
         super().__init__()
-        self.emb = nn.Embedding(v,d)
-        # self.head = nn.Linear(d,v,bias=False)
+        # self.emb = nn.Embedding(v,d)
+        self.head = nn.Linear(d,v,bias=False)
 
     def reset_parameters(self):
-        nn.init.trunc_normal_(self.emb.weight, mean=0.0, std=0.02)
-        # nn.init.trunc_normal_(self.head.weight, mean=0.0, std=0.02)
+        # nn.init.trunc_normal_(self.emb.weight, mean=0.0, std=0.02)
+        nn.init.trunc_normal_(self.head.weight, mean=0.0, std=0.02)
 
     def forward(self, x, **kwargs):
         # return self.head(self.emb(x))
-        return self.emb.weight.sum(0)[None,None].expand(x.size(0), x.size(1), -1)
+        return self.head.weight.sum(1)[None,None].expand(x.size(0), x.size(1), -1)
 
 
 def main(**kwargs):
