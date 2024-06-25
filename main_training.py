@@ -118,9 +118,9 @@ def main(**kwargs):
     checkpointer = Checkpointer(
         cfg.ckpt_save_path, 1000, cfg.sharding_strategy, rank, local_rank
     )
-    model, optimizer, _, start_step, tokens_seen = checkpointer.load(
+    model, _, _, start_step, tokens_seen = checkpointer.load(
         model,
-        optimizer,
+        None,
         None,
         path=os.path.join(cfg.ckpt_load_path, "checkpoints/") if not os.path.isfile(cfg.ckpt_load_path) else cfg.ckpt_load_path,
         strict=False,
