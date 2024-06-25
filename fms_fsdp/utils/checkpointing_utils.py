@@ -203,13 +203,14 @@ class Checkpointer:
                 # Load model
                 with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
                     state_dict = model.state_dict()
+                    state_dict = {k:v for k,v in state_dict.items() if ".w." not in k}
                     model_ckp = {"model_state": state_dict}
                     load_state_dict(
                         state_dict=model_ckp,
                         storage_reader=FileSystemReader(load_path),
                         planner=DefaultLoadPlanner(),
                     )
-                    model.load_state_dict(model_ckp["model_state"])
+                    model.load_state_dict(model_ckp["model_state"], strict=False)
                 model.to(self.local_rank)
                 self.report(model_load_time=time.time() - model_load_time)
                 step = 0
