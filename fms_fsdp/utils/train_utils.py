@@ -233,7 +233,7 @@ def train(
             input[j, i[j]:i[j]+14] = ns[j]
             input[j, -20:] = ps[j, :-1]
 
-        output = model(input)
+        output = model(input.long())
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
 
