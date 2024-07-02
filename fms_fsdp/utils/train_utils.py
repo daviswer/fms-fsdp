@@ -208,7 +208,7 @@ def train(
                 run["hparams"] = asdict(cfg)
 
     model.eval()
-    ddp_stats = torch.zeros(3).to(local_rank)
+    ddp_stats = torch.zeros(3).to(local_rank).long()
 
     start = time.time()
     loop_start = time.time()
