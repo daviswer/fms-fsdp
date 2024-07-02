@@ -164,6 +164,7 @@ def train(
         [1131, 91022, 25, 1148, 374, 279, 6864, 315, 1254, 1786, 398, 30, 578, 6864, 315, 1254, 1786, 398, 374, 3765, 8078],
         [1131, 91022, 25, 1148, 374, 279, 6864, 315, 1254, 1786, 398, 30, 578, 6864, 315, 1254, 1786, 398, 374, 473, 672],
     ]).to(local_rank)
+    dummy = torch.ones(1,1).to(local_rank).mul(1131)
 
     if cfg.tracker:
         if cfg.tracker not in ["wandb", "aim"]:
@@ -216,6 +217,9 @@ def train(
         if batch_idx > cfg.num_steps:
             break
         input = input.to(local_rank)
+
+        # Remove eos tokens
+        input = torch.where(input==cfg.eos_token, dummy, input)
 
         # Get needles/probes
         i = torch.arange(input.size(0)).to(local_rank).add(input.size(0)*batch_idx)%64
