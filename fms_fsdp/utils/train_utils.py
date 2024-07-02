@@ -227,7 +227,7 @@ def train(
         i = torch.randint(low=200, high=3896-14, size=(input.size(0),))
         for j in range(input.size(0)):
             input[j, i[j]:i[j]+14] = ns[j]
-            input[j, -20] = ps[j, :-1]
+            input[j, -20:] = ps[j, :-1]
 
         output = model(input)
         output = output.logits if hasattr(output, "logits") else output
