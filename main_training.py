@@ -111,7 +111,7 @@ def main(**kwargs):
 
     # Optimizer
     optimizer = optim.AdamW(
-        [p for name, p in model.parameters() if 'merge_mlp' in name], 
+        [p for name, p in model.named_parameters() if 'merge_mlp' in name], 
         lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
     )
 
