@@ -228,8 +228,9 @@ def train(
         label = ps[:,-2:]
 
         # Insert needles/probes
-        i = torch.randint(low=200, high=3896-14, size=(input.size(0),))
+        i = torch.randint(low=200, high=cfg.seq_length-200-14, size=(input.size(0),))
         for j in range(input.size(0)):
+            print(input[j, i[j]:i[j]+14].shape, ns[j].shape)
             input[j, i[j]:i[j]+14] = ns[j]
             input[j, -20:] = ps[j, :-1]
 
