@@ -203,7 +203,7 @@ class Checkpointer:
                 # Load model
                 with FSDP.state_dict_type(model, StateDictType.SHARDED_STATE_DICT):
                     state_dict = model.state_dict()
-                    state_dict = {k:v for k,v in state_dict.items() if ".w." not in k}
+                    state_dict = {k:v for k,v in state_dict.items() if ".merge_mlp." not in k}
                     model_ckp = {"model_state": state_dict}
                     load_state_dict(
                         state_dict=model_ckp,
