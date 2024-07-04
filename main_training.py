@@ -110,10 +110,8 @@ def main(**kwargs):
         model = torch.compile(model)
 
     # Optimizer
-    if rank==0:
-        print([name for name,p in model.named_parameters()])
     optimizer = optim.AdamW(
-        [p for name, p in model.named_parameters() if 'merge_mlp' in name], 
+        model.parameters(), 
         lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
     )
 
