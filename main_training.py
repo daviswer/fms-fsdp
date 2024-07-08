@@ -68,15 +68,15 @@ def main(**kwargs):
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f"\n--> model has {total_params / 1e6} Million params\n")
 
-    # get data loader
-    if rank == 0:
-        print("Constructing datasets...")
-    if not cfg.use_dummy_dataset:
-        train_loader = get_data_loader(cfg, rank, world_size)
-    else:
-        train_loader = get_dummy_loader(cfg, rank, world_size)
-    if rank == 0:
-        print("Datasets constructed!")
+    # # get data loader
+    # if rank == 0:
+    #     print("Constructing datasets...")
+    # if not cfg.use_dummy_dataset:
+    #     train_loader = get_data_loader(cfg, rank, world_size)
+    # else:
+    #     train_loader = get_dummy_loader(cfg, rank, world_size)
+    # if rank == 0:
+    #     print("Datasets constructed!")
 
     # FSDP
     model = FSDP(
@@ -149,6 +149,7 @@ def main(**kwargs):
     if rank == 0:
         print(f"Training for {cfg.num_steps} steps")
     for _ in range(4):
+        train_loader = get_data_loader(cfg, rank, world_size)
         train(
             cfg,
             model,
