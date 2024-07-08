@@ -148,19 +148,21 @@ def main(**kwargs):
     # Train
     if rank == 0:
         print(f"Training for {cfg.num_steps} steps")
-    train(
-        cfg,
-        model,
-        local_rank,
-        rank,
-        train_loader,
-        optimizer,
-        scheduler,
-        profiler,
-        checkpointer,
-        start_step,
-        tokens_seen,
-    )
+    for _ in range(4):
+        train(
+            cfg,
+            model,
+            local_rank,
+            rank,
+            train_loader,
+            optimizer,
+            scheduler,
+            profiler,
+            checkpointer,
+            start_step,
+            tokens_seen,
+        )
+        cfg.seq_length = cfg.seq_length // 2
 
     dist.barrier()
     dist.destroy_process_group()
