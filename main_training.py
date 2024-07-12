@@ -72,7 +72,7 @@ def main(**kwargs):
         source="hf",
         distributed_strategy=cfg.sharding_strategy,
     )
-    model = model.bfloat16()
+    model = model.bfloat16().to(local_rank)
 
     if rank == 0:
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
