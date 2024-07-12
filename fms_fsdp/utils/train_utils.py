@@ -248,7 +248,7 @@ def train(
 
         ddp_stats[0] += loss.item()
         ddp_stats[2] += 1
-        ddp_stats[3] += eos_mask.int().sum(1).mean().item()
+        ddp_stats[3] += eos_mask.float().sum(1).mean().item()
 
         if profiler:
             profiler.step()
