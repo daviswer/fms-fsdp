@@ -67,7 +67,7 @@ def main(**kwargs):
     model = get_model(
         "llama",
         cfg.model_variant,
-        model_path=cfg.model_path,
+        model_path=cfg.ckpt_load_path,
         device_type="cuda",
         source="hf",
         distributed_strategy=cfg.sharding_strategy,
