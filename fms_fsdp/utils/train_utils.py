@@ -208,7 +208,7 @@ def train(
                 run["hparams"] = asdict(cfg)
 
     model.eval()
-    ddp_stats = torch.zeros(3).to(local_rank)
+    ddp_stats = torch.zeros(4).to(local_rank)
 
     start = time.time()
     loop_start = time.time()
@@ -219,7 +219,8 @@ def train(
         input = input.to(local_rank)
 
         # Remove eos tokens
-        input = torch.where(input==cfg.eos_token, dummy, input)
+        eos_mask = input==cfg.eos_token
+        input = torch.where(eos_mask, dummy, input)
 
         # Get needles/probes
         i = torch.arange(input.size(0)).to(local_rank).add(input.size(0)*batch_idx)%64
@@ -247,6 +248,7 @@ def train(
 
         ddp_stats[0] += loss.item()
         ddp_stats[2] += 1
+        ddp_stats[3] += eos_mask.int().sum(1).mean().item()
 
         if profiler:
             profiler.step()
@@ -255,6 +257,7 @@ def train(
             dist.all_reduce(ddp_stats, op=dist.ReduceOp.SUM)
             train_loss = ddp_stats[0] / ddp_stats[2]
             g_norm = ddp_stats[1] / ddp_stats[2]
+            n_breaks = ddp_stats[3] / ddp_stats[2]
             elapsed_time = time.time() - loop_start
             world_size = int(os.environ["WORLD_SIZE"])
             new_tokens_seen = (
@@ -265,6 +268,7 @@ def train(
                 current_loss = train_loss.item()
                 current_lr = scheduler.get_last_lr()[0]
                 current_gnorm = g_norm.item()
+                current_nbreaks = n_breaks.item()
                 current_step_time = (time.time() - start) / cfg.report_interval
                 overall_step_time = elapsed_time / (batch_idx - start_step)
                 current_throughput = int(
@@ -285,6 +289,7 @@ def train(
                 print("LR:", current_lr)
                 print("tokens seen:", total_tokens_seen)
                 print("gradient norm:", current_gnorm)
+                print("avg doc breaks:", current_nbreaks)
                 print("reserved memory:", reserved_mem)
                 print("allocated memory:", allocated_mem)
                 print("current step time:", current_step_time)
