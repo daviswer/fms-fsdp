@@ -25,6 +25,7 @@ import json
 
 
 def main(**kwargs):
+    print("GOTHERE")
     # get configs
     cfg = config.train_config()
     update_config(cfg, **kwargs)
