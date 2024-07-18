@@ -1,25 +1,24 @@
-import math
-import os
+print("START GOTHERE")
 
+import os
 import fire
 import torch
-import torch.optim as optim
-from fms.models.llama import LLaMA, LLaMABlock
+print("IMPORT GOTHERE")
 from torch import distributed as dist
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.optim.lr_scheduler import LambdaLR
 from fms.utils import tokenizers
+print("IMPORT GOTHERE")
 
 from fms_fsdp import config
 from fms_fsdp.utils.checkpointing_utils import Checkpointer
-from fms_fsdp.utils.config_utils import get_model_config, update_config
+print("IMPORT GOTHERE")
+
+from fms_fsdp.utils.config_utils import update_config
 from fms_fsdp.utils.dataloader_utils import get_data_loader, get_dummy_loader
+print("IMPORT GOTHERE")
+
 from fms_fsdp.utils.train_utils import (
-    get_policies,
-    get_profiler,
     setup,
     setup_environ_flags,
-    train,
 )
 import json
 print("IMPORT GOTHERE")
