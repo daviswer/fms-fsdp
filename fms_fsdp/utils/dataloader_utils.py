@@ -57,10 +57,10 @@ def get_data_loader(cfg, rank, world_size):
         Sets first prompt_len tokens to be ignored by the loss.
         """
         data_seq = torch.IntTensor(data_seq)
-        t = data_seq.clone()[1:]
-        data_seq = data_seq[:-1]
-        t[:prompt_len] = -100
-        return data_seq, t
+        # t = data_seq.clone()[1:]
+        # data_seq = data_seq[:-1]
+        # t[:prompt_len] = -100
+        return data_seq
 
     # Base streaming dataset. Returns doc chunks in sequence.
     # Implements dataset sampling and rescalability.
@@ -94,7 +94,7 @@ def get_data_loader(cfg, rank, world_size):
     # Shuffle outputs in length 10k buffer. Consecutive lines appear 10k steps apart on average.
     data = Preload_Buffer_Dataset(data, 10000)
     # Split line into input and target for the CLM task.
-    # data = Preprocess_Dataset(data, causal_lm)
+    data = Preprocess_Dataset(data, causal_lm)
     # Enable auto-saving
     # data = Checkpoint_Dataset(
     #     data,
