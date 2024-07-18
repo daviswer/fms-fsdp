@@ -86,7 +86,7 @@ def get_data_loader(cfg, rank, world_size):
     # Wrap above dataset in packing logic to form constant-length lines.
     data = Buffer_Dataset(
         data,
-        cfg.seq_length + 1,
+        cfg.seq_length,
         bos_token=cfg.bol_token,
         eos_token=cfg.eol_token,
         pack_hard=True,
@@ -94,15 +94,15 @@ def get_data_loader(cfg, rank, world_size):
     # Shuffle outputs in length 10k buffer. Consecutive lines appear 10k steps apart on average.
     data = Preload_Buffer_Dataset(data, 10000)
     # Split line into input and target for the CLM task.
-    data = Preprocess_Dataset(data, causal_lm)
+    # data = Preprocess_Dataset(data, causal_lm)
     # Enable auto-saving
-    data = Checkpoint_Dataset(
-        data,
-        cfg.ckpt_load_path,
-        cfg.checkpoint_interval,
-        cfg.batch_size,
-        cfg.ckpt_save_path,
-    )
+    # data = Checkpoint_Dataset(
+    #     data,
+    #     cfg.ckpt_load_path,
+    #     cfg.checkpoint_interval,
+    #     cfg.batch_size,
+    #     cfg.ckpt_save_path,
+    # )
     return torch.utils.data.DataLoader(data, num_workers=1, batch_size=cfg.batch_size)
 
 
