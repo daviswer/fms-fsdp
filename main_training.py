@@ -65,7 +65,7 @@ def main(**kwargs):
             break
 
         for i in range(input.size(0)):
-            prompts.append(prefix+tokenizer.decode(input[i])+suffix)
+            prompts.append(prefix+tokenizer.convert_tokens_to_string(tokenizer.convert_ids_to_tokens(input[i]))+suffix)
 
 
         if batch_idx % cfg.report_interval == 0:
