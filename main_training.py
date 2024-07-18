@@ -22,10 +22,11 @@ from fms_fsdp.utils.train_utils import (
     train,
 )
 import json
+print("IMPORT GOTHERE")
 
 
 def main(**kwargs):
-    print("GOTHERE")
+    print("MAIN GOTHERE")
     # get configs
     cfg = config.train_config()
     update_config(cfg, **kwargs)
@@ -92,4 +93,5 @@ def main(**kwargs):
 
 
 if __name__ == "__main__":
+    print("FIRE GOTHERE")
     fire.Fire(main)
