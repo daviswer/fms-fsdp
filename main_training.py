@@ -1,31 +1,20 @@
-print("START GOTHERE")
-
 import os
 import fire
 import torch
-print("IMPORT GOTHERE")
 from torch import distributed as dist
 from fms.utils import tokenizers
-print("IMPORT GOTHERE")
-
 from fms_fsdp import config
 from fms_fsdp.utils.checkpointing_utils import Checkpointer
-print("IMPORT GOTHERE")
-
 from fms_fsdp.utils.config_utils import update_config
 from fms_fsdp.utils.dataloader_utils import get_data_loader, get_dummy_loader
-print("IMPORT GOTHERE")
-
 from fms_fsdp.utils.train_utils import (
     setup,
     setup_environ_flags,
 )
 import json
-print("IMPORT GOTHERE")
 
 
 def main(**kwargs):
-    print("MAIN GOTHERE")
     # get configs
     cfg = config.train_config()
     update_config(cfg, **kwargs)
@@ -92,5 +81,4 @@ def main(**kwargs):
 
 
 if __name__ == "__main__":
-    print("FIRE GOTHERE")
     fire.Fire(main)
