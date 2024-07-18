@@ -75,6 +75,7 @@ def main(**kwargs):
         if batch_idx % cfg.checkpoint_interval == 0:
             with open(cfg.ckpt_save_path+"/"+str(batch_idx)+".json", 'w') as f:
                 json.dump({"prompts":prompts}, f)
+            prompts = []
 
     dist.barrier()
     dist.destroy_process_group()
