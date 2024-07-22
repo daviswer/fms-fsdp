@@ -6,11 +6,12 @@ import random
 import time
 from typing import Any, Callable, List, Optional, Set, Type, Union
 
-import pyarrow as pa
+import pyarrow.parquet as pq
 import torch
 import torch.utils.data as data
 
 from fms_fsdp.utils.checkpointing_utils import get_latest
+from transformers import AutoTokenizer
 
 
 """
@@ -596,6 +597,7 @@ class Streaming_Doc_Dataset(_Stateful_Dataset):
             Any
         ] = []  # map of doc indices to (shardid, min docid, max docid)
         self.docs_per_shard = {}
+        self.tokenizer = AutoTokenizer.from_pretrained("/Users/dwertheimer/Downloads/llama3_tokenizer")#"/gpfs/llama3/hf/8b_pre_trained/")
 
         # Guaranteed inconsistent shuffling across workers
         random.seed(self.seed + rank)
@@ -628,7 +630,7 @@ class Streaming_Doc_Dataset(_Stateful_Dataset):
             shard
             for shard in os.listdir(datapath)
             if os.path.isfile(os.path.join(datapath, shard))
-            and "arrow" in os.path.join(datapath, shard)
+            and "parquet" in os.path.join(datapath, shard)
         ]
         shards.sort()  # Ensure consistent sharding across machines
         start_frag = (rank * worldsize * len(shards)) // worldsize
@@ -716,7 +718,7 @@ class Streaming_Doc_Dataset(_Stateful_Dataset):
             del reader
             if self.verbose:
                 logging.info(f"Worker {self.rank} opening new file {newpath}")
-            reader = pa.ipc.open_file(newpath)
+            reader = pq.read_pandas(newpath, columns=['text'])['text']
             path = newpath
         return path, reader
 
@@ -732,7 +734,7 @@ class Streaming_Doc_Dataset(_Stateful_Dataset):
                 n_pull -= 1
             else:
                 start_index -= 1
-        chunk = doc.slice(start_index, n_pull).to_pylist()
+        chunk = doc[start_index : start_index + n_pull]
         self.tokens_seen += len(chunk)
         # Add bos/eos tokens if needed
         if self.bos is not None and j == 0:
@@ -780,11 +782,11 @@ class Streaming_Doc_Dataset(_Stateful_Dataset):
                 # Map id in range of owned docs to new (consistently) shuffled id
                 doclcg = self._random_map_docid(docrange)
                 docid = doclcg + mindoc
-                doc = reader.get_batch(docid)["tokens"]
-                if doc[0].as_py() in self.drop:
-                    doc = doc.slice(1, len(doc) - 1)
-                if doc[-1].as_py() in self.drop:
-                    doc = doc.slice(0, len(doc) - 1)
+                doc = self.tokenizer(str(reader[docid]))['input_ids']
+                if doc[0] in self.drop:
+                    doc = doc[1:]
+                if doc[-1] in self.drop:
+                    doc = doc[:-1]
                 doclen = len(doc) + 1 if self.bos is None else len(doc) + 2
                 if doclen >= self.min_length:
                     n_chunks = math.ceil(doclen / self.chunksize)
@@ -811,11 +813,11 @@ class Streaming_Doc_Dataset(_Stateful_Dataset):
             docid = self._random_map_docid(docrange) + mindoc
             newpath = os.path.join(self.data, shardid)
             path, reader = self._get_reader(path, newpath, reader)
-            doc = reader.get_batch(docid)["tokens"]
-            if doc[0].as_py() in self.drop:
-                doc = doc.slice(1, len(doc) - 1)
-            if doc[-1].as_py() in self.drop:
-                doc = doc.slice(0, len(doc) - 1)
+            doc = self.tokenizer(str(reader[docid]))['input_ids']
+            if doc[0] in self.drop:
+                doc = doc[1:]
+            if doc[-1] in self.drop:
+                doc = doc[:-1]
             doclen = len(doc) + 1 if self.bos is None else len(doc) + 2
             if doclen >= self.min_length:
                 n_chunks = math.ceil(doclen / self.chunksize)
