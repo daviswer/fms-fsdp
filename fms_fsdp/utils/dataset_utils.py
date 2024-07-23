@@ -582,6 +582,7 @@ class Streaming_Doc_Dataset(_Stateful_Dataset):
         max_chunksize: int = 1024,
         verbose: bool = False,
         shuffle: bool = True,
+        tokenizer: str = "",
     ):
         super(Streaming_Doc_Dataset, self).__init__(rank, worldsize)
         self.seed = seed
@@ -597,7 +598,7 @@ class Streaming_Doc_Dataset(_Stateful_Dataset):
             Any
         ] = []  # map of doc indices to (shardid, min docid, max docid)
         self.docs_per_shard = {}
-        self.tokenizer = AutoTokenizer.from_pretrained("/Users/dwertheimer/Downloads/llama3_tokenizer")#"/gpfs/llama3/hf/8b_pre_trained/")
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer)
 
         # Guaranteed inconsistent shuffling across workers
         random.seed(self.seed + rank)

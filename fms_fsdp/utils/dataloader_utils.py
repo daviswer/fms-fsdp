@@ -82,6 +82,7 @@ def get_data_loader(cfg, rank, world_size):
         seed=cfg.seed,
         verbose=(rank == 0),
         n_logical_shards=cfg.logical_shards,
+        tokenizer=cfg.tokenizer_path,
     )
     # Wrap above dataset in packing logic to form constant-length lines.
     data = Buffer_Dataset(
