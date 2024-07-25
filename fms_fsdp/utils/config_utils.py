@@ -108,7 +108,7 @@ def get_model_config(model_variant):
             kvheads=4,
             nlayers=24,
             hidden_grow_factor=3.75,
-            max_expected_seq_len=4096,
+            max_expected_seq_len=8192,
             rope_ratio=500_000,
         )
     elif model_variant == "llama3_70b":
