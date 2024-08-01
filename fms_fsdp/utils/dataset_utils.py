@@ -781,6 +781,8 @@ class Streaming_Doc_Dataset(_Stateful_Dataset):
                 doclcg = self._random_map_docid(docrange)
                 docid = doclcg + mindoc
                 doc = reader.get_batch(docid)["tokens"]
+                if len(doc) == 0:
+                    continue
                 if doc[0].as_py() in self.drop:
                     doc = doc.slice(1, len(doc) - 1)
                 if doc[-1].as_py() in self.drop:
