@@ -96,13 +96,13 @@ def get_data_loader(cfg, rank, world_size):
     # Split line into input and target for the CLM task.
     data = Preprocess_Dataset(data, causal_lm)
     # Enable auto-saving
-    data = Checkpoint_Dataset(
-        data,
-        cfg.ckpt_load_path,
-        cfg.checkpoint_interval,
-        cfg.batch_size,
-        cfg.ckpt_save_path,
-    )
+    # data = Checkpoint_Dataset(
+    #     data,
+    #     cfg.ckpt_load_path,
+    #     cfg.checkpoint_interval,
+    #     cfg.batch_size,
+    #     cfg.ckpt_save_path,
+    # )
     return torch.utils.data.DataLoader(data, num_workers=1, batch_size=cfg.batch_size)
 
 
