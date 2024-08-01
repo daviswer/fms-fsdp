@@ -111,6 +111,18 @@ def get_model_config(model_variant):
             max_expected_seq_len=8192,
             rope_ratio=500_000,
         )
+    
+    elif model_variant == "llama3_1.8b_tele8":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=2048,
+            nheads=32,
+            kvheads=4,
+            nlayers=24,
+            hidden_grow_factor=3.5,
+            max_expected_seq_len=8192,
+            rope_ratio=500_000,
+        )
     elif model_variant == "llama3_70b":
         llama_config = LLaMAConfig(
             src_vocab_size=128256,
