@@ -55,14 +55,23 @@ def main(**kwargs):
         param_init_fn,
     ) = get_policies(cfg, rank, block)
 
-    # get fms model
-    llama_config = get_model_config(cfg.model_variant)
-    if cfg.low_cpu_fsdp:
-        with torch.device("meta"):
-            model = LLaMA(llama_config)
-    else:
-        model = LLaMA(llama_config)
-        model.reset_parameters()
+    # # get fms model
+    # llama_config = get_model_config(cfg.model_variant)
+    # if cfg.low_cpu_fsdp:
+    #     with torch.device("meta"):
+    #         model = LLaMA(llama_config)
+    # else:
+    #     model = LLaMA(llama_config)
+    #     model.reset_parameters()
+    model = get_model(
+        "llama",
+        cfg.model_variant,
+        model_path=cfg.ckpt_load_path,
+        device_type="cuda",
+        source="hf",
+        distributed_strategy=cfg.sharding_strategy,
+    )
+    model = model.bfloat16().to(local_rank)
 
     if rank == 0:
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -79,16 +88,16 @@ def main(**kwargs):
     #     print("Datasets constructed!")
 
     # FSDP
-    model = FSDP(
-        model,
-        auto_wrap_policy=wrapping_policy,
-        mixed_precision=mixed_precision_policy,
-        sharding_strategy=sharding_strategy_policy,
-        use_orig_params=cfg.use_torch_compile,
-        device_id=torch.cuda.current_device(),
-        limit_all_gathers=True,
-        param_init_fn=param_init_fn,
-    )
+    # model = FSDP(
+    #     model,
+    #     auto_wrap_policy=wrapping_policy,
+    #     mixed_precision=mixed_precision_policy,
+    #     sharding_strategy=sharding_strategy_policy,
+    #     use_orig_params=cfg.use_torch_compile,
+    #     device_id=torch.cuda.current_device(),
+    #     limit_all_gathers=True,
+    #     param_init_fn=param_init_fn,
+    # )
     # we need this post-fsdp call to avoid graph break with torch.compile, until we figure out a better solution.
     model.rot_emb.compute_freqs_cis(
         torch.device("cuda", torch.cuda.current_device()),
