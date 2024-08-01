@@ -5,6 +5,7 @@ import fire
 import torch
 import torch.optim as optim
 from fms.models.llama import LLaMA, LLaMABlock
+from fms.models import get_model
 from torch import distributed as dist
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.optim.lr_scheduler import LambdaLR
