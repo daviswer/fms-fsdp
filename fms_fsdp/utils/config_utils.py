@@ -60,6 +60,17 @@ def get_model_config(model_variant):
             hidden_grow_factor=3,
             kvheads=4,
         )
+    elif model_variant == "llama3_3.2b_4k":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=3072,
+            nheads=24,
+            kvheads=8,
+            nlayers=24,
+            hidden_grow_factor=8 / 3,
+            max_expected_seq_len=4096,
+            # rope_ratio=500_000,
+        )
     elif model_variant == "llama3_8b":
         llama_config = LLaMAConfig(
             src_vocab_size=128256,
