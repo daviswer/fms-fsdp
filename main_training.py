@@ -137,7 +137,7 @@ def main(**kwargs):
         [
             {
                 "params": params_2d,
-                "lr": cfg.learning_rate / llama_config.emb_dim,
+                "lr": cfg.learning_rate * llama_config.mup_2d_lr / llama_config.emb_dim,
             },
             {"params": params_other},
         ],
