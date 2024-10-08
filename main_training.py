@@ -3,8 +3,11 @@ import os
 
 import fire
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from fms.models.llama import LLaMA, LLaMABlock
+from fms.modules.attention import MultiHeadAttention
+from fms.modules.feedforward import GatedLinearUnit
 from torch import distributed as dist
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.optim.lr_scheduler import LambdaLR
@@ -110,8 +113,30 @@ def main(**kwargs):
         model = torch.compile(model)
 
     # Optimizer
+    params_2d = []
+    for m in model.modules():
+        if isinstance(m, MultiHeadAttention):
+            params_2d += [m.dense.weight] + [
+                m_.weight for m_ in m.in_proj.modules() if isinstance(m_, nn.Linear)
+            ]
+        elif isinstance(m, GatedLinearUnit):
+            params_2d += [m_.weight for m_ in m.modules() if isinstance(m_, nn.Linear)]
+    params_other = [p for p in model.parameters() if p not in params_2d]
+    test = [n for n, p in model.named_parameters() if p not in params_2d]
+    if rank == 0:
+        print(test)
+
     optimizer = optim.AdamW(
-        model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
+        [
+            {
+                "params": params_2d,
+                "lr": cfg.learning_rate / llama_config.emb_dim,
+            },
+            {"params": params_other},
+        ],
+        lr=cfg.learning_rate,
+        betas=(0.9, 0.95),
+        weight_decay=0.1,
     )
 
     # optionally load from checkpoint (when continue pretraining)
@@ -167,7 +192,7 @@ def main(**kwargs):
         tokens_seen,
     )
 
-    checkpointer.save_single_file(cfg.num_steps, model)
+    # checkpointer.save_single_file(cfg.num_steps, model)
 
     dist.barrier()
     dist.destroy_process_group()
