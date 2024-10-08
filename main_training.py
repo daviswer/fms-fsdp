@@ -124,7 +124,14 @@ def main(**kwargs):
     params_other = [p for p in model.parameters() if p not in set(params_2d)]
     test = [n for n, p in model.named_parameters() if p not in set(params_2d)]
     if rank == 0:
+        print("2d params:", len(params_2d))
         print(test)
+    optimizer = optim.AdamW(
+        params_2d,
+        lr=cfg.learning_rate,
+        betas=(0.9, 0.95),
+        weight_decay=0.1,
+    )
 
     optimizer = optim.AdamW(
         [
