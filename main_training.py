@@ -121,8 +121,8 @@ def main(**kwargs):
             ]
         elif isinstance(m, GatedLinearUnit):
             params_2d += [m_.weight for m_ in m.modules() if isinstance(m_, nn.Linear)]
-    params_other = [p for p in model.parameters() if p not in params_2d]
-    test = [n for n, p in model.named_parameters() if p not in params_2d]
+    params_other = [p for p in model.parameters() if p not in set(params_2d)]
+    test = [n for n, p in model.named_parameters() if p not in set(params_2d)]
     if rank == 0:
         print(test)
 
