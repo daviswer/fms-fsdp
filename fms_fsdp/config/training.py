@@ -60,6 +60,14 @@ class train_config:
     # compile
     use_torch_compile: bool = True
 
+    # muP scale params
+    mup_emb_scale: float = 0
+    mup_head_scale: float = 0
+    mup_ffn_init: float = 0
+    mup_attn_init: float = 0
+    mup_attn_temp: float = 0
+    mup_lr_dscale: float = 0
+
     # speculator training
     tp_size: int = 8
     model_arch: str = "embedllama"
