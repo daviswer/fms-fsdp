@@ -214,6 +214,7 @@ def main(**kwargs):
 
     explore_ratio = cfg.mup_explore_range  # explore range of values equal to current value * 2^(+/-4)
     mup_params = [
+        "learning_rate",
         "mup_emb_scale",
         "mup_head_scale",
         "mup_ffn_init",
