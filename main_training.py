@@ -86,7 +86,7 @@ def main(**kwargs):
         sharding_strategy_policy,
         apply_selective_ac,
         param_init_fn,
-    ) = get_policies(cfg, rank, block, llama_config)
+    ) = get_policies(cfg, rank, block)
 
     # FSDP
     model = FSDP(
