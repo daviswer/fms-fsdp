@@ -140,16 +140,20 @@ def main(**kwargs):
             params_2d += [m.wg1_fused.weight, m.w2.weight]
     optimizer = optim.AdamW(
         [
-            {"params": params_0d, "lr": cfg.learning_rate * llama_config.mup_0d_lr},
+            {
+                "params": params_0d, 
+                "lr": cfg.learning_rate
+                / llama_config.mup_lr_dscale},
             {
                 "params": params_1d,
                 "lr": cfg.learning_rate
-                * llama_config.mup_1d_lr
                 / llama_config.emb_dim**0.5,
             },
             {
                 "params": params_2d,
-                "lr": cfg.learning_rate * llama_config.mup_2d_lr / llama_config.emb_dim,
+                "lr": cfg.learning_rate
+                * llama_config.mup_lr_dscale 
+                / llama_config.emb_dim,
             },
         ],
         betas=(0.9, 0.95),

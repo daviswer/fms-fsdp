@@ -66,9 +66,7 @@ class train_config:
     mup_ffn_init: float = 0
     mup_attn_init: float = 0
     mup_attn_temp: float = 0
-    mup_0d_lr: float = 0
-    mup_1d_lr: float = 0
-    mup_2d_lr: float = 0
+    mup_lr_dscale: float = 0
 
     # speculator training
     tp_size: int = 8
