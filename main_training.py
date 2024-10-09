@@ -228,9 +228,12 @@ def main(**kwargs):
             print()
             print(*args)
 
+    def report_mups(prefix,k,v):
+        report(prefix, *[''.join([str(x),str(y),str(z)]) for x,y,z in zip(['\n']*len(k),k,v)])
+
     def set_mups(mup_k, mup_v, cfg):
         new_cfg = deepcopy(cfg)
-        report("  Starting run:", zip(['\n']*len(mup_k), mup_k, mup_v))
+        report_mups("  Starting run:", mup_k, mup_v)
         for k,v in zip(mup_k, mup_v):
             setattr(new_cfg, k, getattr(cfg, k) * 2**(v*explore_ratio))
         return new_cfg
@@ -260,10 +263,10 @@ def main(**kwargs):
             report(k,v)
     
     # Final results
-    report("SEARCH COMPLETE. BEST SCALE VALUES ARE:", zip(['\n']*len(mup_params), mup_params, mup_scale_vals))
+    report_mups("SEARCH COMPLETE. BEST SCALE VALUES ARE:", mup_params, mup_scale_vals)
 
     final = [getattr(cfg, mup_params[i]) * 2**(explore_ratio*mup_scale_vals[i]) for i in range(len(mup_params))]
-    report("CORRESPONDING FINAL VALUES ARE", zip(['\n']*len(mup_params), mup_params, final))
+    report_mups("CORRESPONDING FINAL VALUES ARE:", mup_params, final)
 
 
     dist.barrier()
