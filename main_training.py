@@ -229,7 +229,7 @@ def main(**kwargs):
             print(*args)
 
     def report_mups(prefix,k,v):
-        report(prefix, *[''.join([str(x),str(y),str(z)]) for x,y,z in zip(['\n']*len(k),k,v)])
+        report(prefix, *['\t'.join([str(x),str(y),str(z)]) for x,y,z in zip(['\n']*len(k),k,v)])
 
     def set_mups(mup_k, mup_v, cfg):
         new_cfg = deepcopy(cfg)
