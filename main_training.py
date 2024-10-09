@@ -137,7 +137,7 @@ def main(**kwargs):
                 m.dense.weight,
             ] + [m_.weight for m_ in m.in_proj.modules() if isinstance(m_, nn.Linear)]
         elif isinstance(m, GatedLinearUnit):
-            params_2d += [m.wg1_fused.weight, m.w2.weight]
+            params_2d += [m_.weight for m_ in m.modules() if isinstance(m_, nn.Linear)]
     assert len(params_0d) + len(params_1d) + len(params_2d) == len(list(model.parameters()))
     optimizer = optim.AdamW(
         [
