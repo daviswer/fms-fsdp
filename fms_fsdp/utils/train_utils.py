@@ -31,49 +31,11 @@ def train(
     start_step,
     tokens_seen,
 ):
-    if cfg.tracker:
-        if cfg.tracker not in ["wandb", "aim"]:
-            raise ValueError(f"tracker {cfg.tracker} not supported.")
-        tracker_dir = cfg.tracker_dir
-        project_name = cfg.tracker_project_name
-        run_id = cfg.tracker_run_id
-
-        if cfg.tracker == "wandb":
-            try:
-                import wandb  # type: ignore
-            except ImportError:
-                raise ImportError("tracker is set to wandb but wandb is not installed.")
-            if rank == 0:
-                print(f"--> wandb is enabled!")
-                try:
-                    wandb.init(
-                        project=project_name,
-                        dir=tracker_dir,
-                        resume="allow",
-                        id=run_id,
-                    )
-                except wandb.errors.UsageError:
-                    raise ValueError(
-                        "wandb failed to init, did you pass your wandb api key via WANDB_API_KEY?"
-                    )
-                wandb.config = asdict(cfg)
-
-        if cfg.tracker == "aim":
-            try:
-                from aim import Run  # type: ignore
-            except ImportError:
-                raise ImportError("tracker is set to aim but aim is not installed.")
-            if rank == 0:
-                print(f"--> aim is enabled!")
-                run = Run(
-                    experiment=project_name,
-                    repo=tracker_dir,
-                    run_hash=run_id,
-                )
-                run["hparams"] = asdict(cfg)
-
     model.train()
     ddp_stats = torch.zeros(3).to(local_rank)
+
+    if rank==0:
+        print("    Training begins!")
 
     start = time.time()
     loop_start = time.time()
@@ -130,50 +92,27 @@ def train(
                     device=torch.cuda.current_device()
                 )
 
-                print("step:", batch_idx)
-                print("loss:", current_loss)
-                print("LR:", current_lr)
-                print("tokens seen:", total_tokens_seen)
-                print("gradient norm:", current_gnorm)
-                print("reserved memory:", reserved_mem)
-                print("allocated memory:", allocated_mem)
-                print("current step time:", current_step_time)
-                print("overall step time:", overall_step_time)
-                print("current token per gpu per sec:", current_throughput)
-                print("overall token per gpu per sec:", overall_throughput)
+                print("    step:", batch_idx)
+                print("    loss:", current_loss)
+                print("    LR:", current_lr)
+                print("    tokens seen:", total_tokens_seen)
+                print("    gradient norm:", current_gnorm)
+                print("    reserved memory:", reserved_mem)
+                print("    allocated memory:", allocated_mem)
+                print("    current step time:", current_step_time)
+                print("    overall step time:", overall_step_time)
+                print("    current token per gpu per sec:", current_throughput)
+                print("    overall token per gpu per sec:", overall_throughput)
                 print(
-                    "overall token per day:",
+                    "    overall token per day:",
                     int(new_tokens_seen / elapsed_time * 3600 * 24),
                 )
-                if cfg.tracker:
-                    vals_to_track = {
-                        "learning rate": current_lr,
-                        "loss": current_loss,
-                        "gradient norm": current_gnorm,
-                        "token seen": total_tokens_seen,
-                        "current throughput (token per gpu per sec)": current_throughput,
-                        "overall throughput (token per gpu per sec)": overall_throughput,
-                        "gpu reserved memory": reserved_mem,
-                        "gpu allocated memory": allocated_mem,
-                    }
-                    if cfg.tracker == "wandb":
-                        tracker_fn = wandb.log
-                    elif cfg.tracker == "aim":
-                        tracker_fn = run.track
-                    tracker_fn(vals_to_track, step=batch_idx)
 
             start = time.time()
             ddp_stats.zero_()
-        torch.cuda.reset_peak_memory_stats(device=torch.cuda.current_device())
-
-        if batch_idx % cfg.checkpoint_interval == 0:
-            checkpointer.save(
-                batch_idx,
-                model,
-                optimizer,
-                None,
-                tokens_seen=tokens_seen + new_tokens_seen,
-            )
+            if batch_idx > 1000 and current_loss > 5:
+                return train_loss
+            torch.cuda.reset_peak_memory_stats(device=torch.cuda.current_device())
 
     return train_loss
 
@@ -212,7 +151,7 @@ def get_mixed_precision_policy(cfg, rank):
     return mixed_precision_policy
 
 
-def get_policies(cfg, rank, block):
+def get_policies(cfg, rank, block, model_cfg):
     """Get policies for mixed precision, wrapping, sharding, ac and param init function."""
 
     # mixed precision

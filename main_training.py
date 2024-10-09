@@ -5,6 +5,7 @@ import fire
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from copy import deepcopy
 from fms.models.llama import LLaMA, LLaMABlock
 from fms.modules.attention import MultiHeadAttention
 from fms.modules.embedding import WordEmbedding
@@ -30,30 +31,7 @@ from fms_fsdp.utils.train_utils import (
     train,
 )
 
-
-def main(**kwargs):
-    # get configs
-    cfg = config.train_config()
-    update_config(cfg, **kwargs)
-
-    # ensure reproducibility
-    torch.cuda.manual_seed(cfg.seed)
-    torch.manual_seed(cfg.seed)
-
-    # torchrun specific
-    local_rank = int(os.environ["LOCAL_RANK"])
-    rank = int(os.environ["RANK"])
-    world_size = int(os.environ["WORLD_SIZE"])
-
-    if rank == 0:
-        print(f"--> running with these configs {cfg}")
-
-    # some setups
-    setup()
-    torch.cuda.set_device(local_rank)
-    torch.cuda.empty_cache()
-    setup_environ_flags()
-
+def run(cfg, local_rank, rank, world_size):
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
     llama_config = set_mup_from_cfg(cfg, llama_config)
@@ -64,19 +42,11 @@ def main(**kwargs):
         model = LLaMA(llama_config)
         model.reset_parameters()
 
-    if rank == 0:
-        total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print(f"\n--> model has {total_params / 1e6} Million params\n")
-
     # get data loader
-    if rank == 0:
-        print("Constructing datasets...")
     if not cfg.use_dummy_dataset:
         train_loader = get_data_loader(cfg, rank, world_size)
     else:
         train_loader = get_dummy_loader(cfg, rank, world_size)
-    if rank == 0:
-        print("Datasets constructed!")
 
     # get policy
     block = LLaMABlock
@@ -86,7 +56,7 @@ def main(**kwargs):
         sharding_strategy_policy,
         apply_selective_ac,
         param_init_fn,
-    ) = get_policies(cfg, rank, block)
+    ) = get_policies(cfg, rank, block, llama_config)
 
     # FSDP
     model = FSDP(
@@ -107,14 +77,10 @@ def main(**kwargs):
 
     # fsdp activation checkpointing
     if cfg.fsdp_activation_checkpointing:
-        if rank == 0:
-            print(f"--> applying FSDP activation checkpointing...")
         apply_selective_ac(model, p=cfg.selective_checkpointing)
 
     # torch compile
     if cfg.use_torch_compile:
-        if rank == 0:
-            print(f"--> enabling torch compile...")
         # the default accumulated_cache_size_limit=64 is not enough for 70b model, so we make it 128 here
         torch._dynamo.config.accumulated_cache_size_limit = 128
         model = torch.compile(model)
@@ -205,9 +171,7 @@ def main(**kwargs):
     profiler = get_profiler(cfg, rank)
 
     # Train
-    if rank == 0:
-        print(f"Training for {cfg.num_steps} steps")
-    train(
+    return train(
         cfg,
         model,
         local_rank,
@@ -219,9 +183,107 @@ def main(**kwargs):
         checkpointer,
         start_step,
         tokens_seen,
-    )
+    ).item()
 
-    checkpointer.save_single_file(cfg.num_steps, model)
+
+
+def main(**kwargs):
+    # get configs
+    cfg = config.train_config()
+    update_config(cfg, **kwargs)
+
+    # ensure reproducibility
+    torch.cuda.manual_seed(cfg.seed)
+    torch.manual_seed(cfg.seed)
+
+    # torchrun specific
+    local_rank = int(os.environ["LOCAL_RANK"])
+    rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
+
+    if rank == 0:
+        print(f"--> running with these configs {cfg}")
+
+    # some setups
+    setup()
+    torch.cuda.set_device(local_rank)
+    torch.cuda.empty_cache()
+    setup_environ_flags()
+
+    # Build mup grid
+
+    explore_ratio = cfg.mup_explore_range  # explore range of values equal to current value * 2^(+/-4)
+    mup_params = [
+        "mup_emb_scale",
+        "mup_head_scale",
+        "mup_ffn_init",
+        "mup_attn_init",
+        "mup_attn_temp",
+        "mup_lr_dscale",
+    ]
+    mup_scale_vals = [0 for _ in mup_params]
+
+    def report(*args):
+        if rank==0:
+            print()
+            print(*args)
+
+    def set_mups(mup_k, mup_v, cfg):
+        new_cfg = deepcopy(cfg)
+        report("  Starting run:")
+        for k,v in zip(mup_k, mup_v):
+            setattr(new_cfg, k, getattr(cfg, k) * 2**(v*explore_ratio))
+            report("  ", k, v)
+        return new_cfg
+
+    # Get baseline
+    new_cfg = set_mups(mup_params, mup_scale_vals, cfg)
+    best_loss = run(new_cfg, local_rank, rank, world_size)
+    report("BASELINE COMPLETE, TARGET IS:", best_loss)
+
+    # Looped search
+    for i in range(cfg.mup_search_steps):
+        for j in range(len(mup_params)):
+            report("STEP", i, "ADVANCING", mup_params[j])
+            start_val = mup_scale_vals[j]
+            for sign in [-1,1]:
+                candidate = deepcopy(mup_scale_vals)
+                candidate[j] = start_val + sign * 2**(-i-1)
+                new_cfg = set_mups(mup_params, candidate, cfg)
+                new_loss = run(new_cfg, local_rank, rank, world_size)
+                report("  Run complete, loss is:", new_loss)
+                if new_loss < best_loss:
+                    report("NEW RECORD")
+                    mup_scale_vals = candidate
+        
+        report("ROUND", i, "COMPLETE. CURRENT VALUES ARE:")
+        for k,v in zip(mup_params, mup_scale_vals):
+            report(k,v)
+    
+    # Final results
+    report("SEARCH COMPLETE. BEST SCALE VALUES ARE:")
+    for k,v in zip(mup_params, mup_scale_vals):
+        report(k,v)
+
+    final = [getattr(cfg, mup_params[i]) * 2**(explore_ratio*mup_scale_vals[i]) for i in range(len(mup_params))]
+    report("CORRESPONDING FINAL VALUES ARE")                
+    for k,v in zip(mup_params, final):
+        report(k,v)
+
+
+
+
+
+
+    mup_emb_scale: float = 0
+    mup_head_scale: float = 0
+    mup_ffn_init: float = 0
+    mup_attn_init: float = 0
+    mup_attn_temp: float = 0
+    mup_lr_dscale: float = 0
+
+
+
 
     dist.barrier()
     dist.destroy_process_group()
