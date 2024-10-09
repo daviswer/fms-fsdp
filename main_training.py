@@ -181,7 +181,7 @@ def main(**kwargs):
         start_step = 0
         # Override loaded optim hyperparams with the current values
         for g in optimizer.param_groups:
-            g["initial_lr"] = cfg.learning_rate
+            g["initial_lr"] = cfg.learning_rate/llama_config.emb_dim**.5
 
     # LR schedule
     if cfg.training_stage == "annealing":
