@@ -126,6 +126,39 @@ def get_model_config(model_variant):
             max_expected_seq_len=4096,
             rope_theta=500000.0,
         )
+    elif model_variant == "llama3_3.2b_4k_mup_tiny":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=384,
+            nheads=3,
+            kvheads=1,
+            nlayers=24,
+            hidden_grow_factor=8 / 3,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
+    elif model_variant == "llama3_3.2b_4k_mup_small":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=768,
+            nheads=6,
+            kvheads=2,
+            nlayers=24,
+            hidden_grow_factor=8 / 3,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
+    elif model_variant == "llama3_3.2b_4k_mup_medium":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=1536,
+            nheads=12,
+            kvheads=4,
+            nlayers=24,
+            hidden_grow_factor=8 / 3,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
     elif model_variant == "llama3_70b":
         llama_config = LLaMAConfig(
             src_vocab_size=128256,
