@@ -253,6 +253,7 @@ def main(**kwargs):
                 candidate = deepcopy(mup_scale_vals)
                 candidate[j] = start_val + sign * 2**(-i-1)
                 new_cfg = set_mups(mup_params, candidate, cfg)
+                torch._dynamo.reset()
                 new_loss = run(new_cfg, local_rank, rank, world_size)
                 report("  Run complete, loss is:", new_loss)
                 if new_loss < best_loss:
