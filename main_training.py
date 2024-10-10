@@ -131,27 +131,27 @@ def run(cfg, local_rank, rank, world_size):
     )
 
     # optionally load from checkpoint (when continue pretraining)
-    checkpointer = Checkpointer(
-        cfg.ckpt_save_path, 1000, cfg.sharding_strategy, rank, local_rank
-    )
-    model, optimizer, _, start_step, tokens_seen, is_resuming = checkpointer.load(
-        model,
-        optimizer,
-        None,
-        path=os.path.join(cfg.ckpt_load_path, "checkpoints/")
-        if not os.path.isfile(cfg.ckpt_load_path)
-        else cfg.ckpt_load_path,
-        strict=False,
-    )
-    if not is_resuming:
-        start_step = 0
-        # Override loaded optim hyperparams with the current values
-        for i,g in enumerate(optimizer.param_groups):
-            g["initial_lr"] = (
-                cfg.learning_rate
-                / llama_config.emb_dim ** (i/2)
-                * llama_config.mup_lr_dscale ** (i-1)
-            )
+    # checkpointer = Checkpointer(
+    #     cfg.ckpt_save_path, 1000, cfg.sharding_strategy, rank, local_rank
+    # )
+    # model, optimizer, _, start_step, tokens_seen, is_resuming = checkpointer.load(
+    #     model,
+    #     optimizer,
+    #     None,
+    #     path=os.path.join(cfg.ckpt_load_path, "checkpoints/")
+    #     if not os.path.isfile(cfg.ckpt_load_path)
+    #     else cfg.ckpt_load_path,
+    #     strict=False,
+    # )
+    # if not is_resuming:
+    #     start_step = 0
+    #     # Override loaded optim hyperparams with the current values
+    #     for i,g in enumerate(optimizer.param_groups):
+    #         g["initial_lr"] = (
+    #             cfg.learning_rate
+    #             / llama_config.emb_dim ** (i/2)
+    #             * llama_config.mup_lr_dscale ** (i-1)
+    #         )
 
     # LR schedule
     if cfg.training_stage == "annealing":
@@ -165,10 +165,10 @@ def run(cfg, local_rank, rank, world_size):
             * (1 - 0.1)
             * (1 + math.cos(min(x, cfg.num_steps) / cfg.num_steps * math.pi)),
         )
-    scheduler = LambdaLR(optimizer, lambda x: schedule(x + start_step))
+    scheduler = LambdaLR(optimizer, lambda x: schedule(x))
 
     # profiler
-    profiler = get_profiler(cfg, rank)
+    # profiler = get_profiler(cfg, rank)
 
     # Train
     return train(
@@ -179,10 +179,10 @@ def run(cfg, local_rank, rank, world_size):
         train_loader,
         optimizer,
         scheduler,
-        profiler,
-        checkpointer,
-        start_step,
-        tokens_seen,
+        # profiler,
+        # checkpointer,
+        0,
+        0,
     ).item()
 
 

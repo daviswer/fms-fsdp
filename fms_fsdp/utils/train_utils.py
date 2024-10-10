@@ -1,5 +1,4 @@
 import os
-from dataclasses import asdict
 from functools import partial
 
 
@@ -26,8 +25,8 @@ def train(
     train_loader,
     optimizer,
     scheduler,
-    profiler,
-    checkpointer,
+    # profiler,
+    # checkpointer,
     start_step,
     tokens_seen,
 ):
@@ -60,8 +59,8 @@ def train(
         ddp_stats[0] += loss.item()
         ddp_stats[2] += 1
 
-        if profiler:
-            profiler.step()
+        # if profiler:
+        #     profiler.step()
 
         if batch_idx % cfg.report_interval == 0:
             dist.all_reduce(ddp_stats, op=dist.ReduceOp.SUM)
@@ -139,12 +138,12 @@ def get_mixed_precision_policy(cfg, rank):
         bf16_ready = verify_bfloat_support
         if bf16_ready:
             mixed_precision_policy = bfSixteen
-            if rank == 0:
-                print(f"bFloat16 enabled for mixed precision - using bfSixteen policy")
+            # if rank == 0:
+            #     print(f"bFloat16 enabled for mixed precision - using bfSixteen policy")
         else:
             mixed_precision_policy = fpSixteen
-            if rank == 0:
-                print(f"FP16 enabled")
+            # if rank == 0:
+            #     print(f"FP16 enabled")
     else:
         mixed_precision_policy = None
 
@@ -169,8 +168,8 @@ def get_policies(cfg, rank, block, model_cfg):
         sharding_strategy = ShardingStrategy.NO_SHARD
     else:
         sharding_strategy = ShardingStrategy.FULL_SHARD
-    if rank == 0:
-        print(f"Sharding strategy = {cfg.sharding_strategy}")
+    # if rank == 0:
+    #     print(f"Sharding strategy = {cfg.sharding_strategy}")
 
     # ac handler
     apply_selective_ac = partial(apply_fsdp_checkpointing, block=block)
