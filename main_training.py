@@ -214,13 +214,13 @@ def main(**kwargs):
 
     explore_ratio = cfg.mup_explore_range  # explore range of values equal to current value * 2^(+/-4)
     mup_params = [
-        "learning_rate",
         "mup_emb_scale",
         "mup_head_scale",
         "mup_ffn_init",
         "mup_attn_init",
         "mup_attn_temp",
         "mup_lr_dscale",
+        "learning_rate",
     ]
     mup_scale_vals = [0 for _ in mup_params]
 
@@ -254,6 +254,7 @@ def main(**kwargs):
                 candidate[j] = start_val + sign * 2**(-i-1)
                 new_cfg = set_mups(mup_params, candidate, cfg)
                 torch._dynamo.reset()
+                torch.cuda.empty_cache()
                 new_loss = run(new_cfg, local_rank, rank, world_size)
                 report("  Run complete, loss is:", new_loss)
                 if new_loss < best_loss:
