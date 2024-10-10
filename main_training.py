@@ -249,7 +249,7 @@ def main(**kwargs):
         for j in range(len(mup_params)):
             report("STEP", i, "ADVANCING", mup_params[j])
             start_val = mup_scale_vals[j]
-            for sign in [-1,1]:
+            for sign in [1,-1]:
                 candidate = deepcopy(mup_scale_vals)
                 candidate[j] = start_val + sign * 2**(-i-1)
                 new_cfg = set_mups(mup_params, candidate, cfg)
