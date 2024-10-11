@@ -216,7 +216,7 @@ def main(**kwargs):
     mup_params = [
         "mup_emb_scale",
         "mup_head_scale",
-        "mup_attn_ffn_skew",
+        "mup_a_f_skew",
         "mup_attn_temp",
         "mup_lr_dscale",
         "learning_rate",
@@ -260,9 +260,7 @@ def main(**kwargs):
                     report("NEW RECORD")
                     mup_scale_vals = candidate
         
-        report("ROUND", i, "COMPLETE. CURRENT VALUES ARE:")
-        for k,v in zip(mup_params, mup_scale_vals):
-            report(k,v)
+        report_mups("ROUND " + str(i) + " COMPLETE. CURRENT VALUES ARE:", mup_params, mup_scale_vals)
     
     # Final results
     report_mups("SEARCH COMPLETE. BEST SCALE VALUES ARE:", mup_params, mup_scale_vals)
