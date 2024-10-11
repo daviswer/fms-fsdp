@@ -8,9 +8,9 @@ from fms.modules.layernorm import LayerNormParameterized
 # for details, read https://github.com/foundation-model-stack/fms-fsdp/issues/64
 def param_init_function(module, cfg):
     scales = {
-        MultiHeadAttention: cfg.mup_attn_init,
-        QKV: cfg.mup_attn_init,
-        GatedLinearUnit: cfg.mup_ffn_init,
+        MultiHeadAttention: cfg.mup_attn_ffn_skew**.5,
+        QKV: cfg.mup_attn_ffn_skew**.5,
+        GatedLinearUnit: cfg.mup_attn_ffn_skew**-.5,
         WordEmbedding: (cfg.mup_emb_scale, cfg.mup_head_scale),
         LayerNormParameterized: 1,
     }

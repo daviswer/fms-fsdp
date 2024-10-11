@@ -216,8 +216,7 @@ def main(**kwargs):
     mup_params = [
         "mup_emb_scale",
         "mup_head_scale",
-        "mup_ffn_init",
-        "mup_attn_init",
+        "mup_attn_ffn_skew",
         "mup_attn_temp",
         "mup_lr_dscale",
         "learning_rate",
