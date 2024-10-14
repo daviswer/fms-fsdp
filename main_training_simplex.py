@@ -1,3 +1,4 @@
+import gc
 import math
 import os
 import time
@@ -33,19 +34,9 @@ from fms_fsdp.utils.train_utils import (
 )
 
 def run(cfg, local_rank, rank, world_size):
-    setup()
-    torch.cuda.set_device(local_rank)
-    torch.cuda.empty_cache()
-    setup_environ_flags()
     # ensure reproducibility
     torch.cuda.manual_seed(cfg.seed)
     torch.manual_seed(cfg.seed)
-
-    time.sleep(30)
-    test = torch.ones(1, device=local_rank)
-    dist.barrier()
-    dist.all_reduce(test)
-    print("GOTHERE")
 
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
@@ -201,10 +192,10 @@ def run(cfg, local_rank, rank, world_size):
     )
 
     # Cleanup
+    del model, optimizer, scheduler, train_loader, params_0d, params_1d, params_2d
+    gc.collect()
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
-    dist.barrier()
-    dist.destroy_process_group()
     return loss
 
 
@@ -220,6 +211,12 @@ def main(**kwargs):
 
     if rank == 0:
         print(f"--> running with these configs {cfg}")
+
+    # some setups
+    setup()
+    torch.cuda.set_device(local_rank)
+    torch.cuda.empty_cache()
+    setup_environ_flags()
 
     # Build mup grid
 
@@ -267,8 +264,8 @@ def main(**kwargs):
     simplex = []
     report("ASSEMBLING INITIAL SIMPLEX")
     score = eval(mup_scale_vals, mup_scale_vals)
-    # report(torch.cuda.memory_summary())
-    # time.sleep(300)
+    report(torch.cuda.memory_summary())
+    time.sleep(300)
     simplex.append(mup_scale_vals + [score])
     for i in range(len(mup_scale_vals)):
         candidate = [0 for _ in mup_params]
@@ -337,6 +334,8 @@ def main(**kwargs):
     report_mups("CORRESPONDING FINAL VALUES ARE:", [mup_params, final])
 
 
+    dist.barrier()
+    dist.destroy_process_group()
 
 
 if __name__ == "__main__":
