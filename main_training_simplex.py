@@ -41,7 +41,9 @@ def run(cfg, local_rank, rank, world_size):
     torch.cuda.manual_seed(cfg.seed)
     torch.manual_seed(cfg.seed)
 
+    time.sleep(30)
     test = torch.ones(1, device=local_rank)
+    dist.barrier()
     dist.all_reduce(test)
     print("GOTHERE")
 
