@@ -58,6 +58,7 @@ def train(
 
         ddp_stats[0] += loss.item()
         ddp_stats[2] += 1
+        return 0
 
         # if profiler:
         #     profiler.step()

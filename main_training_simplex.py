@@ -269,7 +269,7 @@ def main(**kwargs):
     simplex = []
     report("ASSEMBLING INITIAL SIMPLEX")
     score = eval(mup_scale_vals, mup_scale_vals)
-    time.sleep(30)
+    time.sleep(10)
     report(torch.cuda.memory_summary())
     time.sleep(300)
     simplex.append(mup_scale_vals + [score])
