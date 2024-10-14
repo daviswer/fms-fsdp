@@ -178,20 +178,20 @@ def run(cfg, local_rank, rank, world_size):
     # profiler = get_profiler(cfg, rank)
 
     # Train
-    loss = 0
-    # loss = train(
-    #     cfg,
-    #     model,
-    #     local_rank,
-    #     rank,
-    #     train_loader,
-    #     optimizer,
-    #     scheduler,
-    #     # profiler,
-    #     # checkpointer,
-    #     0,
-    #     0,
-    # )
+    # loss = 0
+    loss = train(
+        cfg,
+        model,
+        local_rank,
+        rank,
+        train_loader,
+        optimizer,
+        scheduler,
+        # profiler,
+        # checkpointer,
+        0,
+        0,
+    )
 
     # Cleanup
     # del model, optimizer, scheduler, train_loader, params_0d, params_1d, params_2d
