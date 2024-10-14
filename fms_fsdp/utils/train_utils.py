@@ -111,6 +111,7 @@ def train(
             ddp_stats.zero_()
             if batch_idx > 999 and train_loss > 6:
                 return train_loss.item()
+            del model, optimizer, input, output, label, loss, ddp_stats
             torch.cuda.empty_cache()
             return train_loss.item()
 
