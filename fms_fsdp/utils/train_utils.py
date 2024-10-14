@@ -51,8 +51,6 @@ def train(
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output.view(-1, output.size(-1)), label.view(-1).long())
 
-        return 0
-
         loss.backward()
         ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
         optimizer.step()
@@ -113,6 +111,8 @@ def train(
             ddp_stats.zero_()
             if batch_idx > 999 and train_loss > 6:
                 return train_loss.item()
+            torch.cuda.empty_cache()
+            return train_loss.item()
 
     return train_loss.item()
 

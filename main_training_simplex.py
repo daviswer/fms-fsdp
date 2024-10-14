@@ -263,6 +263,7 @@ def main(**kwargs):
     def eval(candidate, old_candidate):
         out = run(set_mups(mup_params, candidate, old_candidate, cfg), local_rank, rank, world_size)
         report("  Final loss:", out)
+        torch.cuda.empty_cache()
         return out
     
     # Assemble initial simplex and evaluate
