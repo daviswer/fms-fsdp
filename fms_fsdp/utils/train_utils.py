@@ -58,7 +58,6 @@ def train(
 
         ddp_stats[0] += loss.item()
         ddp_stats[2] += 1
-        return 0
 
         # if profiler:
         #     profiler.step()
@@ -112,6 +111,7 @@ def train(
             ddp_stats.zero_()
             if batch_idx > 999 and train_loss > 6:
                 return train_loss.item()
+            return train_loss.item()
 
     return train_loss.item()
 
