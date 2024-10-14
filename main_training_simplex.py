@@ -240,7 +240,9 @@ def main(**kwargs):
         return new_cfg
     
     def eval(candidate):
-        return run(set_mups(mup_params, candidate, cfg), local_rank, rank, world_size)
+        out = run(set_mups(mup_params, candidate, cfg), local_rank, rank, world_size)
+        report("  Final loss:", out)
+        return out
     
     # Assemble initial simplex and evaluate
     simplex = []
@@ -295,7 +297,7 @@ def main(**kwargs):
                     candidate = [(x+c)/2 for x,c in zip(simplex[0][:-1], candidate[:-1])]
                     new_simplex.append(candidate + [eval(candidate)])
                 simplex = new_simplex
-        report_mups("STEP {i} COMPLETE:", [mup_params + ["loss"]] + simplex)
+        report_mups(f"STEP {i} COMPLETE:", [mup_params + ["loss"]] + simplex)
 
     mup_scale_vals = simplex[0][:-1]
 
