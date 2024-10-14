@@ -183,7 +183,7 @@ def run(cfg, local_rank, rank, world_size):
         # checkpointer,
         0,
         0,
-    )
+    ).item()
 
 
 
