@@ -71,7 +71,7 @@ def run(cfg, local_rank, rank, world_size):
         auto_wrap_policy=wrapping_policy,
         mixed_precision=mixed_precision_policy,
         sharding_strategy=sharding_strategy_policy,
-        use_orig_params=False,
+        use_orig_params=True,
         device_id=torch.cuda.current_device(),
         limit_all_gathers=True,
         param_init_fn=param_init_fn,
@@ -93,49 +93,49 @@ def run(cfg, local_rank, rank, world_size):
         model = torch.compile(model)
 
     # Optimizer
-    optimizer = optim.AdamW(
-        model.parameters(), lr=cfg.learning_rate/llama_config.emb_dim**.5, betas=(0.9, 0.95), weight_decay=0.1
-    )
-    # params_0d = [p for name, p in model.named_parameters() if "bias" in name] + [
-    #     m.weight for m in model.modules() if isinstance(m, LayerNormParameterized)
-    # ]
-    # params_1d = []
-    # params_2d = []
-    # for m in model.modules():
-    #     if isinstance(m, WordEmbedding):
-    #         params_1d.append(m.emb.weight)
-    #         if m.abs_pos:
-    #             params_1d.append(m.pos_emb.weight)
-    #         if m.reversible and not m.tie_weights:
-    #             params_1d.append(m.head.weight)
-    #     elif isinstance(m, MultiHeadAttention):
-    #         params_2d += [
-    #             m.dense.weight,
-    #         ] + [m_.weight for m_ in m.in_proj.modules() if isinstance(m_, nn.Linear)]
-    #     elif isinstance(m, GatedLinearUnit):
-    #         params_2d += [m_.weight for m_ in m.modules() if isinstance(m_, nn.Linear)]
-    # assert len(params_0d) + len(params_1d) + len(params_2d) == len(list(model.parameters()))
     # optimizer = optim.AdamW(
-    #     [
-    #         {
-    #             "params": params_0d, 
-    #             "lr": cfg.learning_rate
-    #             / llama_config.mup_lr_dscale},
-    #         {
-    #             "params": params_1d,
-    #             "lr": cfg.learning_rate
-    #             / llama_config.emb_dim**0.5,
-    #         },
-    #         {
-    #             "params": params_2d,
-    #             "lr": cfg.learning_rate
-    #             * llama_config.mup_lr_dscale 
-    #             / llama_config.emb_dim,
-    #         },
-    #     ],
-    #     betas=(0.9, 0.95),
-    #     weight_decay=0.1,
+    #     model.parameters(), lr=cfg.learning_rate/llama_config.emb_dim**.5, betas=(0.9, 0.95), weight_decay=0.1
     # )
+    params_0d = [p for name, p in model.named_parameters() if "bias" in name] + [
+        m.weight for m in model.modules() if isinstance(m, LayerNormParameterized)
+    ]
+    params_1d = []
+    params_2d = []
+    for m in model.modules():
+        if isinstance(m, WordEmbedding):
+            params_1d.append(m.emb.weight)
+            if m.abs_pos:
+                params_1d.append(m.pos_emb.weight)
+            if m.reversible and not m.tie_weights:
+                params_1d.append(m.head.weight)
+        elif isinstance(m, MultiHeadAttention):
+            params_2d += [
+                m.dense.weight,
+            ] + [m_.weight for m_ in m.in_proj.modules() if isinstance(m_, nn.Linear)]
+        elif isinstance(m, GatedLinearUnit):
+            params_2d += [m_.weight for m_ in m.modules() if isinstance(m_, nn.Linear)]
+    assert len(params_0d) + len(params_1d) + len(params_2d) == len(list(model.parameters()))
+    optimizer = optim.AdamW(
+        [
+            {
+                "params": params_0d, 
+                "lr": cfg.learning_rate
+                / llama_config.mup_lr_dscale},
+            {
+                "params": params_1d,
+                "lr": cfg.learning_rate
+                / llama_config.emb_dim**0.5,
+            },
+            {
+                "params": params_2d,
+                "lr": cfg.learning_rate
+                * llama_config.mup_lr_dscale 
+                / llama_config.emb_dim,
+            },
+        ],
+        betas=(0.9, 0.95),
+        weight_decay=0.1,
+    )
 
     # optionally load from checkpoint (when continue pretraining)
     # checkpointer = Checkpointer(
