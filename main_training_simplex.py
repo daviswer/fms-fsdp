@@ -234,7 +234,7 @@ def main(**kwargs):
 
     def set_mups(mup_k, mup_v, cfg):
         new_cfg = deepcopy(cfg)
-        report_mups("  Starting run:", mup_k, mup_v)
+        report_mups("  Starting run:", [mup_k, mup_v])
         for k,v in zip(mup_k, mup_v):
             setattr(new_cfg, k, getattr(cfg, k) * 2**(v*explore_ratio))
         return new_cfg
