@@ -186,7 +186,7 @@ def run(cfg, local_rank, rank, world_size):
         # checkpointer,
         0,
         0,
-    ).item()
+    )
 
     # Cleanup
     del model, optimizer, scheduler, train_loader, params_0d, params_1d, params_2d
@@ -235,7 +235,7 @@ def main(**kwargs):
             print(*args)
 
     def mup_format(x):
-        if isinstance(x, str) and len(x) < 4:
+        if isinstance(x, str) and len(x) > 3:
             return x + " "*max(0, 15-len(x))
         elif isinstance(x, float):
             return "{:.3f}".format(x)

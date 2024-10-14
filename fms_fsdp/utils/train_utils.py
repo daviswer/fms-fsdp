@@ -110,9 +110,9 @@ def train(
             start = time.time()
             ddp_stats.zero_()
             if batch_idx > 999 and train_loss > 6:
-                return train_loss
+                return train_loss.item()
 
-    return train_loss
+    return train_loss.item()
 
 
 def setup():
