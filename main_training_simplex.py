@@ -41,6 +41,10 @@ def run(cfg, local_rank, rank, world_size):
     torch.cuda.manual_seed(cfg.seed)
     torch.manual_seed(cfg.seed)
 
+    test = torch.ones(1, device=local_rank)
+    dist.all_reduce(test)
+    print("GOTHERE")
+
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
     llama_config = set_mup_from_cfg(cfg, llama_config)
