@@ -267,7 +267,6 @@ def main(**kwargs):
     report_mups("SIMPLEX COMPLETE:", [mup_params + ["loss"]] + simplex)
 
     for i in range(cfg.mup_search_steps):
-        simplex.sort(key=lambda x: x[-1])
         centroid = torch.tensor(simplex)[:-1,:-1].mean(0)
         candidate = centroid * 2 - torch.tensor(simplex[-1][:-1])
         score = eval(candidate.tolist())
@@ -308,6 +307,8 @@ def main(**kwargs):
                     candidate = [(x+c)/2 for x,c in zip(simplex[0][:-1], candidate[:-1])]
                     new_simplex.append(candidate + [eval(candidate)])
                 simplex = new_simplex
+        
+        simplex.sort(key=lambda x: x[-1])
         report_mups(f"STEP {i} COMPLETE:", [mup_params + ["loss"]] + simplex)
 
     mup_scale_vals = simplex[0][:-1]
