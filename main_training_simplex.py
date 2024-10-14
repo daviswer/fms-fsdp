@@ -228,9 +228,17 @@ def main(**kwargs):
             print()
             print(*args)
 
+    def mup_format(x):
+        if isinstance(x, str):
+            return x + " "*max(0, 15-len(x))
+        elif isinstance(x, float):
+            return "{:.3f}".format(x)
+        else:
+            return str(x)
+
     def report_mups(prefix,vals):
         # vals is a rectangular list of lists
-        report(prefix, *['\t'.join([str(x) for x in group]) for group in zip(['\n']*len(vals[0]),*vals)])
+        report(prefix, *['\t'.join([mup_format(x) for x in group]) for group in zip(['\n']*len(vals[0]),*vals)])
 
     def set_mups(mup_k, mup_v, cfg):
         new_cfg = deepcopy(cfg)
@@ -246,7 +254,7 @@ def main(**kwargs):
     
     # Assemble initial simplex and evaluate
     simplex = []
-    report_mups("ASSEMBLING INITIAL SIMPLEX", [mup_params, mup_params, mup_params])
+    report("ASSEMBLING INITIAL SIMPLEX")
     simplex.append(mup_scale_vals + [eval(mup_scale_vals)])
     for i in range(len(mup_scale_vals)):
         candidate = [0 for _ in mup_params]
@@ -260,7 +268,7 @@ def main(**kwargs):
         centroid = torch.tensor(simplex)[:-1,:-1].mean(0)
         candidate = centroid * 2 - torch.tensor(simplex[-1][:-1])
         score = eval(candidate.tolist())
-        scores = simplex[:,-1]
+        scores = [x[-1] for x in simplex]
         if score < scores[-2] and score > scores[0]:
             # Reflection
             report("  Reflection is good. Adding to simplex.")
