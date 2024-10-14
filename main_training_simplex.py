@@ -243,33 +243,33 @@ def main(**kwargs):
         # vals is a rectangular list of lists
         report(prefix, *['\t'.join([mup_format(x) for x in group]) for group in zip(['\n']*len(vals[0]),*vals)])
 
-    def set_mups(mup_k, mup_v, cfg):
+    def set_mups(mup_k, mup_v, old_mup_v, cfg):
         new_cfg = deepcopy(cfg)
-        report_mups("  Starting run:", [mup_k, mup_v])
+        report_mups("  Starting run:", [mup_k, old_mup_v, ["->"]*len(mup_v), mup_v])
         for k,v in zip(mup_k, mup_v):
             setattr(new_cfg, k, getattr(cfg, k) * 2**(v*explore_ratio))
         return new_cfg
     
-    def eval(candidate):
-        out = run(set_mups(mup_params, candidate, cfg), local_rank, rank, world_size)
+    def eval(candidate, old_candidate):
+        out = run(set_mups(mup_params, candidate, old_candidate, cfg), local_rank, rank, world_size)
         report("  Final loss:", out)
         return out
     
     # Assemble initial simplex and evaluate
     simplex = []
     report("ASSEMBLING INITIAL SIMPLEX")
-    simplex.append(mup_scale_vals + [eval(mup_scale_vals)])
+    simplex.append(mup_scale_vals + [eval(mup_scale_vals, mup_scale_vals)])
     for i in range(len(mup_scale_vals)):
         candidate = [0 for _ in mup_params]
         candidate[i] = 1
-        simplex.append(candidate + [eval(candidate)])
+        simplex.append(candidate + [eval(candidate, mup_scale_vals)])
     simplex.sort(key=lambda x: x[-1])
     report_mups("SIMPLEX COMPLETE:", [mup_params + ["loss"]] + simplex)
 
     for i in range(cfg.mup_search_steps):
         centroid = torch.tensor(simplex)[:-1,:-1].mean(0)
         candidate = centroid * 2 - torch.tensor(simplex[-1][:-1])
-        score = eval(candidate.tolist())
+        score = eval(candidate.tolist(), simplex[-1][:-1])
         scores = [x[-1] for x in simplex]
         if score < scores[-2] and score > scores[0]:
             # Reflection
@@ -279,7 +279,7 @@ def main(**kwargs):
             # Expansion
             report("  Reflection is great. Evaluating extension.")
             candidate_e = 2 * candidate - centroid
-            score_e = eval(candidate_e.tolist())
+            score_e = eval(candidate_e.tolist(), candidate.tolist())
             if score_e < score:
                 simplex[-1] = candidate_e.tolist() + [score_e]
             else:
@@ -295,7 +295,7 @@ def main(**kwargs):
                 report("  Reflection is bad. Evaluating contraction.")
                 candidate_c = (centroid - candidate) / 2
                 thresh = scores[-1] 
-            score_c = eval(candidate_c.tolist())
+            score_c = eval(candidate_c.tolist(), candidate.tolist())
             if score_c < thresh:
                 simplex[-1] = candidate_c.tolist() + [score_c]
             else:
@@ -304,8 +304,8 @@ def main(**kwargs):
                 new_simplex = []
                 new_simplex.append(simplex[0])
                 for candidate in simplex[1:]:
-                    candidate = [(x+c)/2 for x,c in zip(simplex[0][:-1], candidate[:-1])]
-                    new_simplex.append(candidate + [eval(candidate)])
+                    new_candidate = [(x+c)/2 for x,c in zip(simplex[0][:-1], candidate[:-1])]
+                    new_simplex.append(new_candidate + [eval(new_candidate, candidate)])
                 simplex = new_simplex
         
         simplex.sort(key=lambda x: x[-1])
