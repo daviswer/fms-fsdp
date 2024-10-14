@@ -289,13 +289,15 @@ def main(**kwargs):
                 # Outside contraction
                 report("  Reflection is better. Evaluating contraction.")
                 candidate_c = (centroid + candidate) / 2
+                candidate = candidate.tolist()
                 thresh = score
             else:
                 # Inside contraction
                 report("  Reflection is bad. Evaluating contraction.")
                 candidate_c = (centroid - candidate) / 2
+                candidate = simplex[-1][:-1]
                 thresh = scores[-1] 
-            score_c = eval(candidate_c.tolist(), candidate.tolist())
+            score_c = eval(candidate_c.tolist(), candidate)
             if score_c < thresh:
                 simplex[-1] = candidate_c.tolist() + [score_c]
             else:
