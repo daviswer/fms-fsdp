@@ -174,7 +174,7 @@ def run(cfg, local_rank, rank, world_size):
     # profiler = get_profiler(cfg, rank)
 
     # Train
-    return train(
+    loss = train(
         cfg,
         model,
         local_rank,
@@ -188,6 +188,9 @@ def run(cfg, local_rank, rank, world_size):
         0,
     ).item()
 
+    # Cleanup
+    del model, optimizer, scheduler, train_loader, params_0d, params_1d, params_2d
+    return loss
 
 
 def main(**kwargs):
@@ -232,7 +235,7 @@ def main(**kwargs):
             print(*args)
 
     def mup_format(x):
-        if isinstance(x, str):
+        if isinstance(x, str) and len(x) < 4:
             return x + " "*max(0, 15-len(x))
         elif isinstance(x, float):
             return "{:.3f}".format(x)
