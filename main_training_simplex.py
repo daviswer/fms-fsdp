@@ -1,5 +1,6 @@
 import math
 import os
+import time
 
 import fire
 import torch
@@ -34,6 +35,10 @@ from fms_fsdp.utils.train_utils import (
 def run(cfg, local_rank, rank, world_size):
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
+
+    # ensure reproducibility
+    torch.cuda.manual_seed(cfg.seed)
+    torch.manual_seed(cfg.seed)
 
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
@@ -198,10 +203,6 @@ def main(**kwargs):
     cfg = config.train_config()
     update_config(cfg, **kwargs)
 
-    # ensure reproducibility
-    torch.cuda.manual_seed(cfg.seed)
-    torch.manual_seed(cfg.seed)
-
     # torchrun specific
     local_rank = int(os.environ["LOCAL_RANK"])
     rank = int(os.environ["RANK"])
@@ -261,11 +262,15 @@ def main(**kwargs):
     # Assemble initial simplex and evaluate
     simplex = []
     report("ASSEMBLING INITIAL SIMPLEX")
-    simplex.append(mup_scale_vals + [eval(mup_scale_vals, mup_scale_vals)])
+    score = eval(mup_scale_vals, mup_scale_vals)
+    report(torch.cuda.memory_snapshot())
+    time.sleep(300)
+    simplex.append(mup_scale_vals + [score])
     for i in range(len(mup_scale_vals)):
         candidate = [0 for _ in mup_params]
         candidate[i] = 1
-        simplex.append(candidate + [eval(candidate, mup_scale_vals)])
+        score = eval(candidate, mup_scale_vals)
+        simplex.append(candidate + [score])
     simplex.sort(key=lambda x: x[-1])
     report_mups("SIMPLEX COMPLETE:", [mup_params + ["loss"]] + simplex)
 
