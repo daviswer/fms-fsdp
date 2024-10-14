@@ -111,7 +111,6 @@ def train(
             ddp_stats.zero_()
             if batch_idx > 999 and train_loss > 6:
                 return train_loss
-            torch.cuda.reset_peak_memory_stats(device=torch.cuda.current_device())
 
     return train_loss
 

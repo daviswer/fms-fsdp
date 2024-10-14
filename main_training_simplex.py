@@ -32,6 +32,9 @@ from fms_fsdp.utils.train_utils import (
 )
 
 def run(cfg, local_rank, rank, world_size):
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats()
+
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
     llama_config = set_mup_from_cfg(cfg, llama_config)
@@ -312,7 +315,10 @@ def main(**kwargs):
     # Final results
     report_mups("SEARCH COMPLETE. BEST SCALE VALUES ARE:", [mup_params, mup_scale_vals])
 
-    final = [getattr(cfg, mup_params[i]) * 2**(explore_ratio*mup_scale_vals[i]) for i in range(len(mup_params))]
+
+    llama_config = get_model_config(cfg.model_variant)
+    llama_config = set_mup_from_cfg(cfg, llama_config)
+    final = [getattr(llama_config, mup_params[i]) * 2**(explore_ratio*mup_scale_vals[i]) for i in range(len(mup_params))]
     report_mups("CORRESPONDING FINAL VALUES ARE:", [mup_params, final])
 
 
