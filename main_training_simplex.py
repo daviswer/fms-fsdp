@@ -229,7 +229,7 @@ def main(**kwargs):
             print(*args)
 
     def report_mups(prefix,vals):
-        # vals is list of lists
+        # vals is a rectangular list of lists
         report(prefix, *['\t'.join([str(x) for x in group]) for group in zip(['\n']*len(vals[0]),*vals)])
 
     def set_mups(mup_k, mup_v, cfg):
@@ -246,7 +246,7 @@ def main(**kwargs):
     
     # Assemble initial simplex and evaluate
     simplex = []
-    report("ASSEMBLING INITIAL SIMPLEX", [mup_params, mup_params, mup_params])
+    report_mups("ASSEMBLING INITIAL SIMPLEX", [mup_params, mup_params, mup_params])
     simplex.append(mup_scale_vals + [eval(mup_scale_vals)])
     for i in range(len(mup_scale_vals)):
         candidate = [0 for _ in mup_params]
