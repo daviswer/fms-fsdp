@@ -33,9 +33,6 @@ from fms_fsdp.utils.train_utils import (
 )
 
 def run(cfg, local_rank, rank, world_size):
-    torch.cuda.empty_cache()
-    torch.cuda.reset_peak_memory_stats()
-
     # ensure reproducibility
     torch.cuda.manual_seed(cfg.seed)
     torch.manual_seed(cfg.seed)
@@ -195,6 +192,8 @@ def run(cfg, local_rank, rank, world_size):
 
     # Cleanup
     del model, optimizer, scheduler, train_loader, params_0d, params_1d, params_2d
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats()
     return loss
 
 
@@ -263,7 +262,7 @@ def main(**kwargs):
     simplex = []
     report("ASSEMBLING INITIAL SIMPLEX")
     score = eval(mup_scale_vals, mup_scale_vals)
-    report(torch.cuda.memory_snapshot())
+    report(torch.cuda.memory_summary())
     time.sleep(300)
     simplex.append(mup_scale_vals + [score])
     for i in range(len(mup_scale_vals)):
