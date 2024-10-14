@@ -178,27 +178,28 @@ def run(cfg, local_rank, rank, world_size):
     # profiler = get_profiler(cfg, rank)
 
     # Train
-    loss = train(
-        cfg,
-        model,
-        local_rank,
-        rank,
-        train_loader,
-        optimizer,
-        scheduler,
-        # profiler,
-        # checkpointer,
-        0,
-        0,
-    )
+    loss = 0
+    # loss = train(
+    #     cfg,
+    #     model,
+    #     local_rank,
+    #     rank,
+    #     train_loader,
+    #     optimizer,
+    #     scheduler,
+    #     # profiler,
+    #     # checkpointer,
+    #     0,
+    #     0,
+    # )
 
     # Cleanup
-    del model, optimizer, scheduler, train_loader, params_0d, params_1d, params_2d
-    calling_namespace = inspect.currentframe().f_back
-    for _var in ["model", "optimizer", "scheduler", "train_loader", "params_0d", "params_1d", "params_2d"]:
-        calling_namespace.f_locals.pop(_var, None)
-        gc.collect()
-        torch.cuda.empty_cache()
+    # del model, optimizer, scheduler, train_loader, params_0d, params_1d, params_2d
+    # calling_namespace = inspect.currentframe().f_back
+    # for _var in ["model", "optimizer", "scheduler", "train_loader", "params_0d", "params_1d", "params_2d"]:
+    #     calling_namespace.f_locals.pop(_var, None)
+    #     gc.collect()
+    torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
     return loss
 
