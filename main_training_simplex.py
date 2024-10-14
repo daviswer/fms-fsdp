@@ -1,3 +1,4 @@
+import inspect
 import gc
 import math
 import os
@@ -193,8 +194,11 @@ def run(cfg, local_rank, rank, world_size):
 
     # Cleanup
     del model, optimizer, scheduler, train_loader, params_0d, params_1d, params_2d
-    gc.collect()
-    torch.cuda.empty_cache()
+    calling_namespace = inspect.currentframe().f_back
+    for _var in ["model", "optimizer", "scheduler", "train_loader", "params_0d", "params_1d", "params_2d"]:
+        calling_namespace.f_locals.pop(_var, None)
+        gc.collect()
+        torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
     return loss
 
@@ -264,6 +268,7 @@ def main(**kwargs):
     simplex = []
     report("ASSEMBLING INITIAL SIMPLEX")
     score = eval(mup_scale_vals, mup_scale_vals)
+    time.sleep(30)
     report(torch.cuda.memory_summary())
     time.sleep(300)
     simplex.append(mup_scale_vals + [score])
