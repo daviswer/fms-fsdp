@@ -116,23 +116,24 @@ def run(cfg, local_rank, rank, world_size):
             params_2d += [m_.weight for m_ in m.modules() if isinstance(m_, nn.Linear)]
     assert len(params_0d) + len(params_1d) + len(params_2d) == len(list(model.parameters()))
     optimizer = optim.AdamW(
-        [
-            {
-                "params": params_0d, 
-                "lr": cfg.learning_rate
-                / llama_config.mup_lr_dscale},
-            {
-                "params": params_1d,
-                "lr": cfg.learning_rate
-                / llama_config.emb_dim**0.5,
-            },
-            {
-                "params": params_2d,
-                "lr": cfg.learning_rate
-                * llama_config.mup_lr_dscale 
-                / llama_config.emb_dim,
-            },
-        ],
+        # [
+        #     {
+        #         "params": params_0d, 
+        #         "lr": cfg.learning_rate
+        #         / llama_config.mup_lr_dscale},
+        #     {
+        #         "params": params_1d,
+        #         "lr": cfg.learning_rate
+        #         / llama_config.emb_dim**0.5,
+        #     },
+        #     {
+        #         "params": params_2d,
+        #         "lr": cfg.learning_rate
+        #         * llama_config.mup_lr_dscale 
+        #         / llama_config.emb_dim,
+        #     },
+        # ],
+        model.parameters(),
         betas=(0.9, 0.95),
         weight_decay=0.1,
     )
