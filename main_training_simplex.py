@@ -65,12 +65,8 @@ def run(cfg, local_rank, rank, world_size):
     torch.manual_seed(cfg.seed)
 
     # get fms model
-    if rank==0:
-        print(cfg.mup_head_scale)
     llama_config = get_model_config(cfg.model_variant)
     llama_config = set_mup_from_cfg(cfg, llama_config)
-    if rank==0:
-        print(llama_config.mup_head_scale)
     if cfg.low_cpu_fsdp:
         with torch.device("meta"):
             model = LLaMA(llama_config)
@@ -289,13 +285,9 @@ def main(**kwargs):
 
     def set_mups(mup_k, mup_v, old_mup_v, cfg):
         new_cfg = deepcopy(cfg)
-        if rank==0:
-            print("preset", getattr(new_cfg, "mup_head_scale"))
         report_mups("  Starting run:", [mup_k, old_mup_v, ["->"]*len(mup_v), mup_v])
         for k,v in zip(mup_k, mup_v):
             setattr(new_cfg, k, getattr(cfg, k) * 2**(v*explore_ratio))
-        if rank==0:
-            print("postset", getattr(new_cfg, "mup_head_scale"))
         return new_cfg
     
     def eval(candidate, old_candidate):
