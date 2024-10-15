@@ -10,6 +10,7 @@ import torch.distributed
 import torch.nn as nn
 import torch.optim as optim
 from copy import deepcopy
+from datetime import timedelta
 from fms.models.llama import LLaMA, LLaMABlock
 from fms.modules.attention import MultiHeadAttention
 from fms.modules.embedding import WordEmbedding
@@ -38,17 +39,23 @@ from fms_fsdp.utils.train_utils import (
 def run(cfg, local_rank, rank, world_size):
     
     torch.cuda.set_device(local_rank)
-    setup()
+    time.sleep(5+2*rank)
+    dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60), rank=rank, world_size=world_size)
     dist.barrier()
-    if rank==0:
-        print(rank, "GOTHERE")
+    test = torch.ones(1, device=rank) * rank
+    dist.all_reduce(test)
+    time.sleep(5+2*rank)
+    print(rank, "INIT 1", test.item())
+    dist.barrier()
     dist.destroy_process_group()
-    time.sleep(20)
-    setup()
-    if rank==0:
-        print(rank, "GOTHERE")
-    time.sleep(20)
-    print(rank, dist.is_initialized(), dist.is_nccl_available())
+    
+    time.sleep(5+2*rank)
+    dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60), rank=rank, world_size=world_size)
+    dist.barrier()
+    test = torch.ones(1, device=rank) * rank
+    dist.all_reduce(test)
+    time.sleep(5+2*rank)
+    print(rank, "INIT 2", test.item())
     dist.barrier()
 
     
