@@ -261,7 +261,8 @@ def main(**kwargs):
         "mup_lr_dscale",
         "learning_rate",
     ]
-    mup_scale_vals = [0 for _ in mup_params]
+    centering_offset = -1 / len(mup_params)
+    mup_scale_vals = [0 + centering_offset for _ in mup_params]
 
     def report(*args):
         if rank==0:
@@ -303,7 +304,7 @@ def main(**kwargs):
     simplex.append(mup_scale_vals + [score])
     for i in range(len(mup_scale_vals)):
         candidate = [0 for _ in mup_params]
-        candidate[i] = -1
+        candidate[i] = 1 + centering_offset
         score = eval(candidate, mup_scale_vals)
         simplex.append(candidate + [score])
     simplex.sort(key=lambda x: x[-1])
