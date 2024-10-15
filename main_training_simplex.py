@@ -303,7 +303,7 @@ def main(**kwargs):
     simplex.append(mup_scale_vals + [score])
     for i in range(len(mup_scale_vals)):
         candidate = [0 for _ in mup_params]
-        candidate[i] = 1
+        candidate[i] = -1
         score = eval(candidate, mup_scale_vals)
         simplex.append(candidate + [score])
     simplex.sort(key=lambda x: x[-1])
