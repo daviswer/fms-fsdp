@@ -35,12 +35,18 @@ from fms_fsdp.utils.train_utils import (
 )
 
 def run(cfg, local_rank, rank, world_size):
-    time.sleep(10)
-    setup()
+    
     torch.cuda.set_device(local_rank)
-    torch.cuda.empty_cache()
-    time.sleep(10)
+    setup()
     dist.barrier()
+    print(rank, "GOTHERE")
+    dist.destroy_process_group()
+    time.sleep(20)
+    setup()
+    print(rank, "GOTHERE")
+    time.sleep(20)
+    dist.barrier()
+
     
     # ensure reproducibility
     torch.cuda.manual_seed(cfg.seed)
