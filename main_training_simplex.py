@@ -39,6 +39,7 @@ def run(cfg, local_rank, rank, world_size):
     setup()
     torch.cuda.set_device(local_rank)
     torch.cuda.empty_cache()
+    time.sleep(10)
     dist.barrier()
     
     # ensure reproducibility
