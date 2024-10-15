@@ -6,6 +6,7 @@ import time
 
 import fire
 import torch
+import torch.distributed
 import torch.nn as nn
 import torch.optim as optim
 from copy import deepcopy
@@ -42,11 +43,12 @@ def run(cfg, local_rank, rank, world_size):
     if rank==0:
         print(rank, "GOTHERE")
     dist.destroy_process_group()
-    time.sleep(60)
+    time.sleep(20)
     setup()
     if rank==0:
         print(rank, "GOTHERE")
-    time.sleep(60)
+    time.sleep(20)
+    print(rank, dist.is_initialized(), dist.is_nccl_available())
     dist.barrier()
 
     
