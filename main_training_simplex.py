@@ -287,9 +287,13 @@ def main(**kwargs):
 
     def set_mups(mup_k, mup_v, old_mup_v, cfg):
         new_cfg = deepcopy(cfg)
+        if rank==0:
+            print(getattr(new_cfg, "mup_head_scale"))
         report_mups("  Starting run:", [mup_k, old_mup_v, ["->"]*len(mup_v), mup_v])
         for k,v in zip(mup_k, mup_v):
             setattr(new_cfg, k, getattr(cfg, k) * 2**(v*explore_ratio))
+        if rank==0:
+            print(getattr(new_cfg, "mup_head_scale"))
         return new_cfg
     
     def eval(candidate, old_candidate):
