@@ -337,7 +337,7 @@ def main(**kwargs):
             else:
                 # Inside contraction
                 report("  Reflection is bad. Evaluating contraction.")
-                candidate_c = (centroid - candidate) / 2
+                candidate_c = (centroid * 3 - candidate) / 2
                 candidate = simplex[-1][:-1]
                 thresh = scores[-1] 
             score_c = eval(candidate_c.tolist(), candidate)
