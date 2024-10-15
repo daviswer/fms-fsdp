@@ -97,7 +97,7 @@ def train(
                 break
             
     if rank==0:
-        print("    step:", batch_idx)
+        print("    step:", min(batch_idx, cfg.num_steps))
         print("    loss:", current_loss)
         # print("    LR:", current_lr)
         print("    tokens seen:", total_tokens_seen)

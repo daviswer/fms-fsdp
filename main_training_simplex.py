@@ -303,7 +303,7 @@ def main(**kwargs):
     # time.sleep(300)
     simplex.append(mup_scale_vals + [score])
     for i in range(len(mup_scale_vals)):
-        candidate = [0 for _ in mup_params]
+        candidate = deepcopy(mup_scale_vals)
         candidate[i] = 1 + centering_offset
         score = eval(candidate, mup_scale_vals)
         simplex.append(candidate + [score])
