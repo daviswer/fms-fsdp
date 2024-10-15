@@ -271,9 +271,11 @@ def main(**kwargs):
     simplex = []
     report("ASSEMBLING INITIAL SIMPLEX")
     score = eval(mup_scale_vals, mup_scale_vals)
+
+    dist.destroy_process_group()
     # time.sleep(10)
     # report(torch.cuda.memory_summary())
-    # time.sleep(300)
+    time.sleep(300)
     simplex.append(mup_scale_vals + [score])
     for i in range(len(mup_scale_vals)):
         candidate = [0 for _ in mup_params]
