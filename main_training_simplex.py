@@ -35,6 +35,7 @@ from fms_fsdp.utils.train_utils import (
 )
 
 def run(cfg, local_rank, rank, world_size):
+    time.sleep(10)
     setup()
     torch.cuda.set_device(local_rank)
     torch.cuda.empty_cache()
