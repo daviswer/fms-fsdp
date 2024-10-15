@@ -39,12 +39,14 @@ def run(cfg, local_rank, rank, world_size):
     torch.cuda.set_device(local_rank)
     setup()
     dist.barrier()
-    print(rank, "GOTHERE")
+    if rank==0:
+        print(rank, "GOTHERE")
     dist.destroy_process_group()
-    time.sleep(20)
+    time.sleep(60)
     setup()
-    print(rank, "GOTHERE")
-    time.sleep(20)
+    if rank==0:
+        print(rank, "GOTHERE")
+    time.sleep(60)
     dist.barrier()
 
     
