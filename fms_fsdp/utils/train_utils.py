@@ -71,46 +71,47 @@ def train(
             new_tokens_seen = (
                 (batch_idx - start_step) * world_size * cfg.batch_size * cfg.seq_length
             )
-            if rank == 0 and batch_idx == cfg.num_steps - 1:
-                total_tokens_seen = tokens_seen + new_tokens_seen
-                current_loss = train_loss.item()
-                # current_lr = scheduler.get_last_lr()[0]
-                current_gnorm = g_norm.item()
-                current_step_time = (time.time() - start) / cfg.report_interval
-                # overall_step_time = elapsed_time / (batch_idx - start_step)
-                current_throughput = int(
-                    cfg.batch_size * cfg.seq_length / current_step_time
-                )
-                # overall_throughput = int(
-                #     cfg.batch_size * cfg.seq_length / overall_step_time
-                # )
-                # reserved_mem = torch.cuda.max_memory_reserved(
-                #     device=torch.cuda.current_device()
-                # )
-                # allocated_mem = torch.cuda.max_memory_allocated(
-                #     device=torch.cuda.current_device()
-                # )
+            # if rank == 0:
+            total_tokens_seen = tokens_seen + new_tokens_seen
+            current_loss = train_loss.item()
+            # current_lr = scheduler.get_last_lr()[0]
+            current_gnorm = g_norm.item()
+            current_step_time = (time.time() - start) / cfg.report_interval
+            # overall_step_time = elapsed_time / (batch_idx - start_step)
+            current_throughput = int(
+                cfg.batch_size * cfg.seq_length / current_step_time
+            )
+            # overall_throughput = int(
+            #     cfg.batch_size * cfg.seq_length / overall_step_time
+            # )
+            # reserved_mem = torch.cuda.max_memory_reserved(
+            #     device=torch.cuda.current_device()
+            # )
+            # allocated_mem = torch.cuda.max_memory_allocated(
+            #     device=torch.cuda.current_device()
+            # )
 
             start = time.time()
             ddp_stats.zero_()
             if batch_idx > 999 and train_loss > 6:
                 break
             
-    print("    step:", batch_idx)
-    print("    loss:", current_loss)
-    # print("    LR:", current_lr)
-    print("    tokens seen:", total_tokens_seen)
-    print("    gradient norm:", current_gnorm)
-    # print("    reserved memory:", reserved_mem)
-    # print("    allocated memory:", allocated_mem)
-    print("    current step time:", current_step_time)
-    # print("    overall step time:", overall_step_time)
-    print("    current token per gpu per sec:", current_throughput)
-    # print("    overall token per gpu per sec:", overall_throughput)
-    # print(
-    #     "    overall token per day:",
-    #     int(new_tokens_seen / elapsed_time * 3600 * 24),
-    # )
+    if rank==0:
+        print("    step:", batch_idx)
+        print("    loss:", current_loss)
+        # print("    LR:", current_lr)
+        print("    tokens seen:", total_tokens_seen)
+        print("    gradient norm:", current_gnorm)
+        # print("    reserved memory:", reserved_mem)
+        # print("    allocated memory:", allocated_mem)
+        print("    current step time:", current_step_time)
+        # print("    overall step time:", overall_step_time)
+        print("    current token per gpu per sec:", current_throughput)
+        # print("    overall token per gpu per sec:", overall_throughput)
+        # print(
+        #     "    overall token per day:",
+        #     int(new_tokens_seen / elapsed_time * 3600 * 24),
+        # )
     return train_loss.item()
 
 
