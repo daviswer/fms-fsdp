@@ -241,7 +241,7 @@ def main(**kwargs):
     cfg = config.train_config()
     update_config(cfg, **kwargs)
     llama_config = get_model_config(cfg.model_variant)
-    cfg = set_mup_from_cfg(cfg, llama_config)
+    cfg = set_mup_from_cfg(llama_config, cfg)
 
     # torchrun specific
     local_rank = int(os.environ["LOCAL_RANK"])
