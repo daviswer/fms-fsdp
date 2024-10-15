@@ -194,11 +194,12 @@ def run(cfg, local_rank, rank, world_size):
     )
 
     # Cleanup
-    # del model, optimizer, scheduler, train_loader, params_0d, params_1d, params_2d
+    model.cpu()
+    del model, optimizer, params_0d, params_1d, params_2d
     # calling_namespace = inspect.currentframe().f_back
     # for _var in ["model", "optimizer", "scheduler", "train_loader", "params_0d", "params_1d", "params_2d"]:
     #     calling_namespace.f_locals.pop(_var, None)
-    #     gc.collect()
+    gc.collect()
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
     return loss
