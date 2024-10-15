@@ -38,25 +38,26 @@ from fms_fsdp.utils.train_utils import (
 
 def run(cfg, local_rank, rank, world_size):
     
-    torch.cuda.set_device(local_rank)
-    time.sleep(5+2*rank)
-    dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60), rank=rank, world_size=world_size)
-    dist.barrier()
-    test = torch.ones(1, device=rank) * rank
-    dist.all_reduce(test)
-    time.sleep(5+2*rank)
-    print(rank, "INIT 1", test.item())
-    dist.barrier()
-    dist.destroy_process_group()
+    # time.sleep(5+2*rank)
+    # dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60), rank=rank, world_size=world_size)
+    # dist.barrier()
+    # test = torch.ones(1, device=rank) * rank
+    # dist.all_reduce(test)
+    # time.sleep(5+2*rank)
+    # print(rank, "INIT 1", test.item())
+    # dist.barrier()
+    # dist.destroy_process_group()
     
-    time.sleep(5+2*rank)
-    dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60), rank=rank, world_size=world_size)
-    dist.barrier()
-    test = torch.ones(1, device=rank) * rank
-    dist.all_reduce(test)
-    time.sleep(5+2*rank)
-    print(rank, "INIT 2", test.item())
-    dist.barrier()
+    # time.sleep(5+2*rank)
+    # dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60), rank=rank, world_size=world_size)
+    # dist.barrier()
+    # test = torch.ones(1, device=rank) * rank
+    # dist.all_reduce(test)
+    # time.sleep(5+2*rank)
+    # print(rank, "INIT 2", test.item())
+    # dist.barrier()
+
+    pg = dist.new_group(use_local_synchronization=True)
 
     
     # ensure reproducibility
@@ -92,6 +93,7 @@ def run(cfg, local_rank, rank, world_size):
     # FSDP
     model = FSDP(
         model,
+        process_group=pg,
         auto_wrap_policy=wrapping_policy,
         mixed_precision=mixed_precision_policy,
         sharding_strategy=sharding_strategy_policy,
@@ -226,7 +228,7 @@ def run(cfg, local_rank, rank, world_size):
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats()
     dist.barrier()
-    dist.destroy_process_group()
+    dist.destroy_process_group(pg)
     return loss
 
 
@@ -244,6 +246,8 @@ def main(**kwargs):
         print(f"--> running with these configs {cfg}")
 
     # some setups
+    torch.cuda.set_device(local_rank)
+    setup()
     setup_environ_flags()
 
     # Build mup grid
@@ -362,6 +366,9 @@ def main(**kwargs):
     llama_config = set_mup_from_cfg(cfg, llama_config)
     final = [getattr(llama_config, mup_params[i]) * 2**(explore_ratio*mup_scale_vals[i]) for i in range(len(mup_params))]
     report_mups("CORRESPONDING FINAL VALUES ARE:", [mup_params, final])
+
+    dist.barrier()
+    dist.destroy_process_group()
 
 
 
