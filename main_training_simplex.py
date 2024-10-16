@@ -314,7 +314,8 @@ def main(**kwargs):
 
     for i in range(cfg.mup_search_steps):
         centroid = torch.tensor(simplex)[:-1,:-1].mean(0)
-        candidate = centroid * 2 - torch.tensor(simplex[-1][:-1])
+        delta = centroid - torch.tensor(simplex[-1][:-1])
+        candidate = centroid + delta
         score = eval(candidate.tolist(), simplex[-1][:-1])
         scores = [x[-1] for x in simplex]
         if score < scores[-2] and score > scores[0]:
@@ -324,7 +325,7 @@ def main(**kwargs):
         elif score < scores[0]:
             # Expansion
             report("  Reflection is great. Evaluating extension.")
-            candidate_e = 2 * candidate - centroid
+            candidate_e = centroid + (1 + 2/len(mup_params)) * delta
             score_e = eval(candidate_e.tolist(), candidate.tolist())
             if score_e < score:
                 simplex[-1] = candidate_e.tolist() + [score_e]
@@ -334,13 +335,13 @@ def main(**kwargs):
             if score < scores[-1]:
                 # Outside contraction
                 report("  Reflection is better. Evaluating contraction.")
-                candidate_c = (centroid + candidate) / 2
+                candidate_c = centroid + (.75 - 1/2/len(mup_params)) * delta
                 candidate = candidate.tolist()
                 thresh = score
             else:
                 # Inside contraction
                 report("  Reflection is bad. Evaluating contraction.")
-                candidate_c = (centroid * 3 - candidate) / 2
+                candidate_c = centroid - (.75 - 1/2/len(mup_params)) * delta
                 candidate = simplex[-1][:-1]
                 thresh = scores[-1] 
             score_c = eval(candidate_c.tolist(), candidate)
@@ -351,8 +352,9 @@ def main(**kwargs):
                 report("  Nonconvexity discovered! Global contraction required \[]-_-]/")
                 new_simplex = []
                 new_simplex.append(simplex[0])
+                n = len(mup_params)
                 for candidate in simplex[1:]:
-                    new_candidate = [(x+c)/2 for x,c in zip(simplex[0][:-1], candidate[:-1])]
+                    new_candidate = [(x+(n-1)*c)/n for x,c in zip(simplex[0][:-1], candidate[:-1])]
                     new_simplex.append(new_candidate + [eval(new_candidate, candidate)])
                 simplex = new_simplex
         
