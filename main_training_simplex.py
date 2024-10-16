@@ -263,7 +263,7 @@ def main(**kwargs):
         "mup_lr_dscale",
         "learning_rate",
     ]
-    centering_offset = 1 / len(mup_params)
+    centering_offset = -1 / len(mup_params)
     mup_scale_vals = [0 + centering_offset for _ in mup_params]
 
     def report(*args):
@@ -306,7 +306,7 @@ def main(**kwargs):
     simplex.append(mup_scale_vals + [score])
     for i in range(len(mup_scale_vals)):
         candidate = deepcopy(mup_scale_vals)
-        candidate[i] = -1 + centering_offset
+        candidate[i] = 1 + centering_offset
         score = eval(candidate, mup_scale_vals)
         simplex.append(candidate + [score])
     simplex.sort(key=lambda x: x[-1])
@@ -328,6 +328,7 @@ def main(**kwargs):
             candidate_e = centroid + (1 + 2/len(mup_params)) * delta
             score_e = eval(candidate_e.tolist(), candidate.tolist())
             if score_e < score:
+                report("  Extension is also great. Adding to simplex.")
                 simplex[-1] = candidate_e.tolist() + [score_e]
             else:
                 simplex[-1] = candidate.tolist() + [score]
@@ -346,6 +347,7 @@ def main(**kwargs):
                 thresh = scores[-1] 
             score_c = eval(candidate_c.tolist(), candidate)
             if score_c < thresh:
+                report("  Contraction is good. Adding to simplex.")
                 simplex[-1] = candidate_c.tolist() + [score_c]
             else:
                 # Global contraction
