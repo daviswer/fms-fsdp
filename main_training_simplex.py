@@ -263,8 +263,6 @@ def main(**kwargs):
         "mup_lr_dscale",
         "learning_rate",
     ]
-    centering_offset = -1 / len(mup_params)
-    mup_scale_vals = [0 + centering_offset for _ in mup_params]
 
     def report(*args):
         if rank==0:
@@ -306,7 +304,7 @@ def main(**kwargs):
     candidates = simplex.t().tolist()
     simplex = []
     for candidate in candidates:
-        simplex.append(candidate + [eval(candidate, mup_scale_vals)])
+        simplex.append(candidate + [eval(candidate, candidate)])
     simplex.sort(key=lambda x: x[-1])
     report_mups("SIMPLEX COMPLETE:", [mup_params + ["loss"]] + simplex)
 
