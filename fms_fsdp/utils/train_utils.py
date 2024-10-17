@@ -93,7 +93,9 @@ def train(
 
             start = time.time()
             ddp_stats.zero_()
-            if batch_idx > 999 and (torch.isnan(train_loss) or train_loss > 6):
+            if torch.isnan(train_loss) or train_loss > 15:
+                break
+            if batch_idx > 999 and train_loss > 6:
                 break
             
     if rank==0:
