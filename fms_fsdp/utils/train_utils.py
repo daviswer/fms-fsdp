@@ -93,7 +93,7 @@ def train(
 
             start = time.time()
             ddp_stats.zero_()
-            if batch_idx > 999 and train_loss > 6:
+            if batch_idx > 999 and (torch.isnan(train_loss) or train_loss > 6):
                 break
             
     if rank==0:
@@ -112,7 +112,7 @@ def train(
         #     "    overall token per day:",
         #     int(new_tokens_seen / elapsed_time * 3600 * 24),
         # )
-    return train_loss.item()
+    return train_loss.item() if not torch.isnan(train_loss) else 100
 
 
 def setup():
