@@ -297,18 +297,16 @@ def main(**kwargs):
         return out
     
     # Assemble initial simplex and evaluate
-    simplex = []
+    
     report("ASSEMBLING INITIAL SIMPLEX")
-    score = eval(mup_scale_vals, mup_scale_vals)
-    # time.sleep(10)
-    # report(torch.cuda.memory_summary())
-    # time.sleep(300)
-    simplex.append(mup_scale_vals + [score])
-    for i in range(len(mup_scale_vals)):
-        candidate = deepcopy(mup_scale_vals)
-        candidate[i] = 1 + centering_offset
-        score = eval(candidate, mup_scale_vals)
-        simplex.append(candidate + [score])
+    n = len(mup_params)
+    simplex = torch.eye(n)
+    simplex = torch.cat([torch.ones(n).neg().mul(((1+n)**.5-1)/n), simplex], dim=1)
+    simplex = simplex - simplex.mean(1, True)
+    candidates = simplex.t().tolist()
+    simplex = []
+    for candidate in candidates:
+        simplex.append(candidate + [eval(candidate, mup_scale_vals)])
     simplex.sort(key=lambda x: x[-1])
     report_mups("SIMPLEX COMPLETE:", [mup_params + ["loss"]] + simplex)
 
