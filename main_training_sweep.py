@@ -263,7 +263,7 @@ def main(**kwargs):
         "mup_lr_dscale",
         "learning_rate",
     ]
-    mup_scale_vals = [0.8,0,-0.25,-0.5,-0.5,0.5]
+    mup_scale_vals = [0.5,0,0,0,-0.5,0.5]
 
     def report(*args):
         if rank==0:
