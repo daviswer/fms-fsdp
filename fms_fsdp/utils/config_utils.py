@@ -196,11 +196,9 @@ def get_model_config(model_variant):
     return llama_config
 
 
-def set_mup_from_cfg(job_cfg, model_cfg, rank):
+def set_mup_from_cfg(job_cfg, model_cfg):
     fields = {k: v for k, v in vars(job_cfg).items() if "mup" in k and v > 0}
     for f in fields:
         if hasattr(model_cfg, f):
-            if rank==0:
-                print("Setting", f, "from", getattr(model_cfg, f), "to", fields[f])
             setattr(model_cfg, f, fields[f])
     return model_cfg

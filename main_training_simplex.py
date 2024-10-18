@@ -66,7 +66,7 @@ def run(cfg, local_rank, rank, world_size):
 
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
-    llama_config = set_mup_from_cfg(cfg, llama_config, rank)
+    llama_config = set_mup_from_cfg(cfg, llama_config)
     if cfg.low_cpu_fsdp:
         with torch.device("meta"):
             model = LLaMA(llama_config)
@@ -243,7 +243,7 @@ def main(**kwargs):
     cfg = config.train_config()
     update_config(cfg, **kwargs)
     llama_config = get_model_config(cfg.model_variant)
-    cfg = set_mup_from_cfg(llama_config, cfg, rank)
+    cfg = set_mup_from_cfg(llama_config, cfg)
     # Overwrite any llama_config vals with the desired kwarg vals
     update_config(cfg, **kwargs)
 
