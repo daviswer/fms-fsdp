@@ -7,6 +7,7 @@ from fms.modules.layernorm import LayerNormParameterized
 
 # for details, read https://github.com/foundation-model-stack/fms-fsdp/issues/64
 def param_init_function(module, cfg):
+    print("GOTHERE FSDP")
     scales = {
         MultiHeadAttention: cfg.mup_a_f_skew**.5,
         QKV: cfg.mup_a_f_skew**.5,
