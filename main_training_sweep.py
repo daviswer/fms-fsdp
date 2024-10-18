@@ -37,28 +37,8 @@ from fms_fsdp.utils.train_utils import (
 )
 
 def run(cfg, local_rank, rank, world_size):
-    
-    # time.sleep(5+2*rank)
-    # dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60), rank=rank, world_size=world_size)
-    # dist.barrier()
-    # test = torch.ones(1, device=rank) * rank
-    # dist.all_reduce(test)
-    # time.sleep(5+2*rank)
-    # print(rank, "INIT 1", test.item())
-    # dist.barrier()
-    # dist.destroy_process_group()
-    
-    # time.sleep(5+2*rank)
-    # dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60), rank=rank, world_size=world_size)
-    # dist.barrier()
-    # test = torch.ones(1, device=rank) * rank
-    # dist.all_reduce(test)
-    # time.sleep(5+2*rank)
-    # print(rank, "INIT 2", test.item())
-    # dist.barrier()
 
     pg = dist.new_group(use_local_synchronization=True)
-
     
     # ensure reproducibility
     torch.cuda.manual_seed(cfg.seed)
