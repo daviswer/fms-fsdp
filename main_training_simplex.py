@@ -296,6 +296,9 @@ def main(**kwargs):
     
     # Assemble initial simplex and evaluate
     
+    report(eval([0,0,2,0,0,0], [0,0,0,0,0,0]))
+    return
+
     report("ASSEMBLING INITIAL SIMPLEX")
     n = len(mup_params)
     simplex = torch.eye(n)
