@@ -200,4 +200,5 @@ def set_mup_from_cfg(job_cfg, model_cfg):
     fields = {k: v for k, v in vars(job_cfg).items() if "mup" in k and v > 0}
     for f in fields:
         setattr(model_cfg, f, fields[f])
+        print(f, fields[f])
     return model_cfg
