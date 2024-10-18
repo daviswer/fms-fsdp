@@ -303,7 +303,7 @@ def main(**kwargs):
     simplex = torch.eye(n)
     simplex = torch.cat([torch.ones(n, 1).neg().mul(((1+n)**.5-1)/n), simplex], dim=1)
     simplex = simplex - simplex.mean(1, True)
-    candidates = simplex.t().tolist()
+    candidates = simplex.t().neg().tolist()
     simplex = []
     for candidate in candidates:
         simplex.append(candidate + [eval(candidate, candidate)])
