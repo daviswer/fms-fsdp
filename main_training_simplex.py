@@ -233,6 +233,12 @@ def run(cfg, local_rank, rank, world_size):
 
 
 def main(**kwargs):
+
+    # torchrun specific
+    local_rank = int(os.environ["LOCAL_RANK"])
+    rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
+
     # get configs
     cfg = config.train_config()
     update_config(cfg, **kwargs)
@@ -240,11 +246,6 @@ def main(**kwargs):
     cfg = set_mup_from_cfg(llama_config, cfg, rank)
     # Overwrite any llama_config vals with the desired kwarg vals
     update_config(cfg, **kwargs)
-
-    # torchrun specific
-    local_rank = int(os.environ["LOCAL_RANK"])
-    rank = int(os.environ["RANK"])
-    world_size = int(os.environ["WORLD_SIZE"])
 
     if rank == 0:
         print(f"--> running with these configs {cfg}")
