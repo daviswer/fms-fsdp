@@ -690,46 +690,6 @@ def test_scalable_partitioning():
                 assert i * 100 in allout, f"Token {i*100} missing from outputs {allout}"
 
 
-# def test_scalable_shard_reload_scale():
-#     """
-#     As test_reload_epoch, but in this case we scale from 2 workers to 4 (complete 1/3 epoch, reload, finish without duplication).
-#     Because logical shards won't all be the exact same length when checkpointed, we complete the epoch of the shortest of the new workers.
-#     """
-#     datasets = [
-#         basic_scalable(i, 2, max_chunksize=40, n_logical_shards=8) for i in range(2)
-#     ]  # Length 300
-#     loaders = [iter(d) for d in datasets]
-
-#     ins = []
-#     for _ in range(50):
-#         out = next(loaders[0])
-#         ins.append(out[0])
-#     for _ in range(50):
-#         out = next(loaders[1])
-#         ins.append(out[0])
-
-#     states = [d.state_dict() for d in datasets]
-
-#     datasets2 = [
-#         basic_scalable(i, 4, max_chunksize=40, n_logical_shards=8) for i in range(4)
-#     ]  # Length 300
-#     [d.load_state_dict(states) for d in datasets2]
-#     ndocs = [sum(d.n_docs_remaining) for d in datasets]
-#     print("n_docs_remaining from old loader:", ndocs)
-#     ndocs = [sum(d.n_docs_remaining) for d in datasets2]
-#     print("n_docs_remaining per new loader:", ndocs)
-
-#     loaders2 = [iter(d) for d in datasets2]
-
-#     print("Checking only", min(ndocs) * 3, "steps instead of full 50")
-#     for j in range(min(ndocs) * 3):
-#         for i in range(4):
-#             out = next(loaders2[i])
-#             assert (
-#                 out[0] not in ins
-#             ), f"Step {j+1}, dataset {i+1}: chunk starting with {out[0]} has already appeared in the epoch"
-
-
 def test_scalable_reload_epoch():
     """
     As test_reload_epoch, but in this case we scale from 2 workers to 5
