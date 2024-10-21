@@ -126,10 +126,7 @@ class _StatefulDataset(data.IterableDataset):
         On the off chance that you're saving a checkpoint with zero steps, run setup first.
         """
         self.setup()
-        return {
-            self.statename(flag): getattr(self, flag)
-            for flag in self.state_params
-        }
+        return {self.statename(flag): getattr(self, flag) for flag in self.state_params}
 
     def load_state_dict(self, state_dict):
         """
@@ -883,7 +880,7 @@ class StreamingDocDataset(_StatefulDataset):
         assert (
             d == self.dataset
         ), f"Dataset mismatch: checkpoint contains {self.dataset}, expected {d}"
-    
+
     def state_dict(self):
         return super().state_dict()
 
@@ -1019,7 +1016,9 @@ class ScalableShardDataset(_WrapperDataset):
         self.setup()
         if isinstance(state_dicts, dict):
             _StatefulDataset.load_state_dict(self, state_dicts)
-            self.logical_shard_states = state_dicts[self.statename("logical_shard_states")]
+            self.logical_shard_states = state_dicts[
+                self.statename("logical_shard_states")
+            ]
         else:
             if not sharded:
                 self.load_worldsize = len(state_dicts)
@@ -1157,7 +1156,9 @@ class SamplingDataset(_WrapperDataset):
         # Load sub-iterator states
         for i, subdata in enumerate(self.data):
             # Grab just that sub-iterator across all ranks
-            subdata.load_state_dict(state_dict[self.statename("sample_iterator_states")][i])
+            subdata.load_state_dict(
+                state_dict[self.statename("sample_iterator_states")][i]
+            )
 
 
 class CheckpointDataset(_WrapperDataset):
@@ -1268,7 +1269,9 @@ class CheckpointDataset(_WrapperDataset):
         self.report(f"Saving dataset to {path}")
         start = time.time()
         os.makedirs(path, exist_ok=True)
-        torch.save(self.state_dict(), os.path.join(path, f"loader_state_{self.rank}.pth"))
+        torch.save(
+            self.state_dict(), os.path.join(path, f"loader_state_{self.rank}.pth")
+        )
         self.report(
             f"Dataset successfully saved to {path}! Save time: {time.time() - start}"
         )
@@ -1306,4 +1309,3 @@ class CheckpointDataset(_WrapperDataset):
         states = [torch.load(os.path.join(path, x)) for x in my_fileshards]
         self.dataset.load_state_dict(states, sharded=True)
         self.report(f"Dataset checkpoint loaded! Load time: {time.time() - start}")
-

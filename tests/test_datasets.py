@@ -92,7 +92,7 @@ def multi_reload_stress_check(d):
 
         states = [deepcopy(d.state_dict()) for d in datasets]
 
-        [d.load_state_dict(s) for d,s in zip(datasets2,states)]
+        [d.load_state_dict(s) for d, s in zip(datasets2, states)]
 
         loaders2 = [iter(d) for d in datasets2]
 
@@ -281,7 +281,7 @@ def reload_epoch_check(loader):
         )
         for i in range(2)
     ]  # Length 300
-    [d.load_state_dict(s) for d,s in zip(datasets2,states)]
+    [d.load_state_dict(s) for d, s in zip(datasets2, states)]
     loaders2 = [iter(d) for d in datasets2]
 
     for j in range(100):
@@ -320,7 +320,7 @@ def reload_single_epoch_check(loader):
         )
         for i in range(2)
     ]  # Length 300
-    [d.load_state_dict(s) for d,s in zip(datasets2,states)]
+    [d.load_state_dict(s) for d, s in zip(datasets2, states)]
     loaders2 = [iter(d) for d in datasets2]
 
     ins = []
@@ -732,13 +732,12 @@ def test_scalable_partitioning():
 
 def test_scalable_reload_epoch():
     """
-    As test_reload_epoch, but in this case we scale from 2 workers to 5 
+    As test_reload_epoch, but in this case we scale from 2 workers to 5
     (complete 1/3 epoch, reload, finish without duplication and check epoch is complete).
     """
     for layer in [basic_scalable, basic_sampler_scalable]:
         datasets = [
-            layer(i, 2, max_chunksize=40, n_logical_shards=10)
-            for i in range(2)
+            layer(i, 2, max_chunksize=40, n_logical_shards=10) for i in range(2)
         ]  # Length 300
         loaders = [iter(d) for d in datasets]
 
@@ -753,8 +752,7 @@ def test_scalable_reload_epoch():
         states = [d.state_dict() for d in datasets]
 
         datasets2 = [
-            layer(i, 5, max_chunksize=40, n_logical_shards=10)
-            for i in range(5)
+            layer(i, 5, max_chunksize=40, n_logical_shards=10) for i in range(5)
         ]  # Length 300
         [d.load_state_dict(states) for d in datasets2]
         loaders2 = [iter(d) for d in datasets2]
@@ -901,10 +899,7 @@ def test_checkpoint_rescale():
     Check that the auto-checkpointer saves and loads correctly across different world sizes.
     Complete 40% epoch, finish the other 60%, verify that evey point appears once.
     """
-    datasets = [
-        basic_scalable(i, 5, n_logical_shards=20)
-        for i in range(5)
-    ]
+    datasets = [basic_scalable(i, 5, n_logical_shards=20) for i in range(5)]
     datasets = [
         CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 8, 1)
         for x in datasets
@@ -930,24 +925,28 @@ def test_checkpoint_rescale():
 
     for worldsize in [1, 4, 10, 20]:
         # Create a second loader, pointing to first's checkpoint
-        datasets = [basic_scalable(i, worldsize, n_logical_shards=20) for i in range(worldsize)]
-        datasets = [CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 100, 1)
-                    for x in datasets]
+        datasets = [
+            basic_scalable(i, worldsize, n_logical_shards=20) for i in range(worldsize)
+        ]
+        datasets = [
+            CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 100, 1)
+            for x in datasets
+        ]
         [d.setup() for d in datasets]
         loaders = [iter(d) for d in datasets]
         new_vals = []
-        for _ in range(60//worldsize):
+        for _ in range(60 // worldsize):
             for loader in loaders:
                 new_vals.append(next(loader)[0])
 
         # Check for non-overlap
-        all_vals = set(new_vals+old_vals)
-        assert len(new_vals)+len(old_vals) == len(all_vals)
+        all_vals = set(new_vals + old_vals)
+        assert len(new_vals) + len(old_vals) == len(all_vals)
 
         # Check for coverage
         for i in range(100):
-            assert i*100 in all_vals, i*100
-        
+            assert i * 100 in all_vals, i * 100
+
 
 def test_checkpoint_reload_match():
     """
