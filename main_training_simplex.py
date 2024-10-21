@@ -369,7 +369,7 @@ def main(**kwargs):
 
     llama_config = get_model_config(cfg.model_variant)
     llama_config = set_mup_from_cfg(cfg, llama_config)
-    final = [getattr(llama_config, mup_params[i]) * 2**(explore_ratio*mup_scale_vals[i]) for i in range(len(mup_params))]
+    final = [getattr(cfg, mup_params[i]) * 2**(explore_ratio*mup_scale_vals[i]) for i in range(len(mup_params))]
     report_mups("CORRESPONDING FINAL VALUES ARE:", [mup_params, final])
 
     dist.barrier()
