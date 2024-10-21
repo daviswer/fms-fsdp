@@ -192,33 +192,6 @@ class _StatefulDataset(data.IterableDataset):
                 setattr(self, flag, reshard)
         return state_dicts
 
-    def load_from_path(self, path: str):
-        """
-        Count shard files in the specified checkpoint folder and determine overlap with current
-        rank and worldsize partition. Load only matching shardfile(s) and pass to load_state_dict.
-        This is more efficient than sharding the full loaded state.
-        """
-        assert os.path.exists(path), "Specified checkpoint does not exist"
-        assert not os.path.isfile(path), "Checkpoint should be a folder of shard states"
-        fileshards = [x for x in os.listdir(path) if "loader" in x]
-        fileshards = sorted(fileshards, key=lambda x: int(x.split("_")[2][:-4]))
-        assert (
-            len(fileshards) > 0
-        ), "Checkpoint directory must contain checkpoint files with 'loader' in the name"
-        self.load_worldsize = len(fileshards)
-        # Grab only the shard files holding data we currently own
-        my_fileshards = _shard_inclusive(fileshards, self.rank, self.worldsize)
-        states = [torch.load(os.path.join(path, x)) for x in my_fileshards]
-        self.load_state_dict(states, True)
-
-    def save_to_path(self, path: str):
-        """
-        Grab recursive shard states and save all shard states to the specified checkpoint folder
-        """
-        os.makedirs(path, exist_ok=True)
-        state = self.state_dict()
-        torch.save(state, os.path.join(path, f"loader_state_{self.rank}.pth"))
-
 
 class _WrapperDataset(_StatefulDataset):
     """
@@ -535,14 +508,23 @@ class CheckpointDataset(_WrapperDataset):
         return latest
 
     def save_to_path(self, path: str):
+        """
+        Grab recursive shard states and save all shard states to the specified checkpoint folder
+        """
         self.report(f"Saving dataset to {path}")
         start = time.time()
-        super().save_to_path(path)
+        os.makedirs(path, exist_ok=True)
+        torch.save(self.state_dict(), os.path.join(path, f"loader_state_{self.rank}.pth"))
         self.report(
             f"Dataset successfully saved to {path}! Save time: {time.time() - start}"
         )
 
     def load_from_path(self, path: str):
+        """
+        Count shard files in the specified checkpoint folder and determine overlap with current
+        rank and worldsize partition. Load only matching shardfile(s) and pass to load_state_dict.
+        This is more efficient than sharding the full loaded state.
+        """
         save_path = self._validate_ckp_path(self.path, False)
         if len(save_path) > 0:
             self.report(
@@ -559,7 +541,16 @@ class CheckpointDataset(_WrapperDataset):
                 self.step = 0
         # Proceed
         start = time.time()
-        self.dataset.load_from_path(path)
+        fileshards = [x for x in os.listdir(path) if "loader" in x]
+        fileshards = sorted(fileshards, key=lambda x: int(x.split("_")[2][:-4]))
+        assert (
+            len(fileshards) > 0
+        ), "Checkpoint directory must contain checkpoint files with 'loader' in the name"
+        self.dataset.load_worldsize = len(fileshards)
+        # Grab only the shard files holding data we currently own
+        my_fileshards = _shard_inclusive(fileshards, self.rank, self.worldsize)
+        states = [torch.load(os.path.join(path, x)) for x in my_fileshards]
+        self.dataset.load_state_dict(states, True)
         self.report(f"Dataset checkpoint loaded! Load time: {time.time() - start}")
 
 
@@ -591,8 +582,7 @@ class PreloadBufferDataset(_WrapperDataset):
         self.generator = torch.Generator().manual_seed(self.rank)
         self.buffer: List[List[Any]] = []
         self.buffer_size = 0
-        self.state_params = ["g_state"]
-        self.reshard_params = ["buffer"]
+        self.state_params = ["g_state", "buffer"]
 
     def __iter__(self):
         dataset = iter(self.dataset)
@@ -1088,6 +1078,9 @@ class StreamingDocDataset(_StatefulDataset):
             d == self.dataset
         ), f"Dataset mismatch: checkpoint contains {self.dataset}, expected {d}"
         return out
+    
+    def state_dict(self):
+        return super().state_dict()
 
 
 class ScalableShardDataset(_WrapperDataset):

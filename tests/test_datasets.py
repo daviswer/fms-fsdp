@@ -890,6 +890,62 @@ def test_preload_buffer_uniformity():
 # CHECKPOINTDATASET TESTS
 
 
+def test_checkpoint_rescale():
+    """
+    Check that the auto-checkpointer saves and loads correctly across different world sizes.
+    Complete 40% epoch, finish the other 60%, verify that evey point appears once.
+    """
+    datasets = [
+        basic_scalable(i, 5, n_logical_shards=20)
+        for i in range(5)
+    ]
+    datasets = [
+        CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 8, 1)
+        for x in datasets
+    ]
+    loaders = [iter(x) for x in datasets]
+
+    old_vals = []
+    for _ in range(8):
+        for loader in loaders:
+            old_vals.append(next(loader)[0])
+    # Prefetch where ckp is actually saved
+    [next(l) for l in loaders]
+
+    # Assert checkpoint exists and is properly formatted
+    ckps = os.listdir(os.path.join(tmpdir.name, "ckp_rescale_test", "checkpoints"))
+    assert len(ckps) == 1, f"Expected only one checkpoint (found {len(ckps)})"
+    ckp_shards = os.listdir(
+        os.path.join(tmpdir.name, "ckp_rescale_test", "checkpoints", ckps[0])
+    )
+    assert (
+        len(ckp_shards) == 5
+    ), f"Expected five checkpoint shards (found {len(ckp_shards)})"
+
+    for worldsize in [1, 4, 10, 20]:
+        # Create a second loader, pointing to first's checkpoint
+        datasets = [basic_scalable(i, worldsize, n_logical_shards=20) for i in range(worldsize)]
+        datasets = [CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 100, 1)
+                    for x in datasets]
+        [d.setup() for d in datasets]
+        loaders = [iter(d) for d in datasets]
+        new_vals = []
+        for _ in range(60//worldsize):
+            for loader in loaders:
+                new_vals.append(next(loader)[0])
+
+        # Check for non-overlap
+        all_vals = set(new_vals+old_vals)
+        assert len(new_vals)+len(old_vals) == len(all_vals)
+
+        # Check for coverage
+        for i in range(100):
+            assert i*100 in all_vals, i*100
+
+
+
+        
+
 def test_checkpoint_reload_match():
     """
     Check that the auto-checkpointer saves and loads correctly, and that loaded checkpoints
