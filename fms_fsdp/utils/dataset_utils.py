@@ -82,7 +82,6 @@ class _StatefulDataset(data.IterableDataset):
             os.path.isdir(datapath) and len(os.listdir(datapath)) > 0
         ), f"Data path {datapath} must be a non-empty folder or None"
         self.state_params: List[str] = []
-        self.reshard_params: List[str] = []
 
         # Default fields
         self.datapath = datapath
@@ -91,7 +90,6 @@ class _StatefulDataset(data.IterableDataset):
         self.local_worldsize = -1
 
         # Setup / loading flags
-        self.load_worldsize = worldsize
         self.is_setup = False
 
     def setup(self):
@@ -130,37 +128,10 @@ class _StatefulDataset(data.IterableDataset):
         self.setup()
         return {
             self.statename(flag): getattr(self, flag)
-            for flag in self.state_params + self.reshard_params
+            for flag in self.state_params
         }
 
-    def _reshard(self, sharded_list):
-        """
-        Sharded_list is a list of lists, where each "shard" sublist must have the same length.
-        These shards should tightly span only the partition of data owned by this worker.
-        (i.e. if global_list is the list of all entries, sharded_list = _shard_inclusive(global_list) ).
-        Determine fractional ownership of shards, and get the flattened partition owned by this worker.
-        """
-        # How many shards did _shard_inclusive() drop to the left of sharded_list?
-        shard_offset = math.floor(self.load_worldsize * self.rank / self.worldsize)
-        # How long are the list shards?
-        shard_len = len(sharded_list[0])
-        for i, shard in enumerate(sharded_list):
-            assert (
-                len(shard) == shard_len
-            ), f"Shard {i} with length {len(shard)} does not match expected {shard_len}"
-        # How many list items did _shard_inclusive() drop to the left of the flattened sharded_list?
-        item_offset = shard_len * shard_offset
-        # How many list items are there in total?
-        n_items = self.load_worldsize * shard_len
-        # The indices of the flattened sharded_list that this worker owns
-        my_items = range(
-            int(n_items * self.rank / self.worldsize) - item_offset,
-            int(n_items * (self.rank + 1) / self.worldsize) - item_offset,
-        )
-        # Pull out owned items
-        return [sharded_list[i // shard_len][i % shard_len] for i in my_items]
-
-    def load_state_dict(self, state_dicts, sharded_input=False):
+    def load_state_dict(self, state_dict):
         """
         Input state_dicts is a list of state_dicts. If sharded_input=False, this is expected to be the
         global list of states across all checkpoint shard files. If sharded_input=True, this expects
@@ -176,21 +147,10 @@ class _StatefulDataset(data.IterableDataset):
         5. Return reduced input for use by downstream loading functions
         """
         self.setup()
-        if not sharded_input:
-            self.load_worldsize = len(state_dicts)
-            state_dicts = _shard_inclusive(state_dicts, self.rank, self.worldsize)
-        if self.load_worldsize == self.worldsize:
-            [
-                setattr(self, flag, state_dicts[0][self.statename(flag)])
-                for flag in self.state_params + self.reshard_params
-            ]
-        else:
-            for flag in self.reshard_params:
-                reshard = self._reshard(
-                    [sd[self.statename(flag)] for sd in state_dicts]
-                )
-                setattr(self, flag, reshard)
-        return state_dicts
+        [
+            setattr(self, flag, state_dict[self.statename(flag)])
+            for flag in self.state_params
+        ]
 
 
 class _WrapperDataset(_StatefulDataset):
@@ -225,15 +185,13 @@ class _WrapperDataset(_StatefulDataset):
             self.dataset.local_worldsize = self.local_worldsize
             self.dataset.setup()
 
-    def load_state_dict(self, state_dicts, sharded_input=False):
+    def load_state_dict(self, state_dict):
         """
         Sets all specified flags at the current level, then recurses into wrapped dataset.
         """
         self.setup()
-        sharded_dicts = super().load_state_dict(state_dicts, sharded_input)
-        self.dataset.load_worldsize = self.load_worldsize
-        self.dataset.load_state_dict(sharded_dicts, True)
-        return sharded_dicts
+        super().load_state_dict(state_dict)
+        self.dataset.load_state_dict(state_dict)
 
     def state_dict(self):
         """
@@ -243,7 +201,7 @@ class _WrapperDataset(_StatefulDataset):
         self.setup()
         out = self.dataset.state_dict()
         state = super().state_dict()
-        for flag in self.state_params + self.reshard_params:
+        for flag in self.state_params:
             if flag in out:
                 logging.warning(
                     f"Loader {self.rank}: flag {flag} already present in state_dict with value {out[flag]}. "
@@ -406,154 +364,6 @@ class PreprocessDataset(_WrapperDataset):
             yield self.aug_fn(out)
 
 
-class CheckpointDataset(_WrapperDataset):
-    """
-    Wrapper for a _StatefulDataset that implements auto-checkpoint saving every n steps.
-    Useful for setting n_workers > 0, so that workers do not rely on the master process
-    for state saving (inter-process communication unsupported in PyTorch datasets).
-    ...
-    Args
-    ----
-    dataset : _StatefulDataset
-        Fully instantiated dataset
-    load_path : str
-        Absolute path to checkpoint load directory. If a checkpoint exists, loads it.
-    interval : int
-        Saves a new checkpoint every interval.
-    steps_per_batch : optional[int]
-        Number of steps required to fill a single batch. Increments interval only
-        when a full batch is formed. Defaults to 1.
-    save_path : optional[str]
-        Absolute path to checkpoint save directory. Defaults to load_path.
-    """
-
-    def __init__(
-        self,
-        dataset: _StatefulDataset,
-        load_path: str,
-        interval: int,
-        steps_per_batch: int = 1,
-        save_path: str = "",
-    ):
-        super().__init__(dataset)
-        self.interval = interval
-        self.spb = steps_per_batch
-        load_path = os.path.join(load_path, "checkpoints")
-        if len(save_path) == 0:
-            save_path = load_path
-        else:
-            save_path = os.path.join(save_path, "checkpoints")
-        self.load_path = load_path
-        self.path = save_path
-        self.step = 0
-        self.ministep = 0
-
-    def setup(self):
-        if not self.is_setup:
-            super().setup()
-            self.load_from_path(self.load_path)
-
-    def __iter__(self):
-        self.setup()
-        dataset = iter(self.dataset)
-        while True:
-            yield next(dataset)
-            self.ministep += 1
-            if self.ministep == self.spb:
-                self.ministep = 0
-                self.step += 1
-                if self.step % self.interval == 0:
-                    newpath = os.path.join(self.path, "step_" + str(self.step) + "_ckp")
-                    self.save_to_path(newpath)
-
-    def report(self, msg):
-        if self.rank == 0:
-            print(msg)
-
-    def _validate_ckp_path(self, path: str, verbose: bool = False):
-        """
-        Interpret path to appropriate checkpoint.
-        If found, return modified path.
-        If not found, return empty string.
-        """
-        # Does path exists, and if it exists, is it non-empty?
-        if not os.path.exists(path) or len(os.listdir(path)) == 0:
-            if verbose:
-                self.report(
-                    f"  Dataset: No valid checkpoint detected at {path}, dataset starting from scratch."
-                )
-            return ""
-        # Check latest path, using ckp naming syntax
-        latest = get_latest(path, key=lambda path: int(path.split("_")[-2]))
-        if verbose:
-            self.report(f"Checkpoint detected at {latest}")
-        # If item is not a folder, exit early
-        if os.path.isfile(latest):
-            if verbose:
-                self.report(
-                    f"  Dataset: Detected checkpoint {latest} is a single file with no dataset info."
-                    + " Dataset starting from scratch."
-                )
-            return ""
-        # If item is a folder, check that it contains shard files
-        if len([x for x in os.listdir(latest) if "loader" in x]) == 0:
-            if verbose:
-                self.report(
-                    f"  Dataset: Detected checkpoint {latest} exists but contains no dataset checkpoints."
-                    + " Dataset starting from scratch."
-                )
-            return ""
-        # If item is a folder, get the step count
-        self.step = int(latest.split("_")[-2])
-        return latest
-
-    def save_to_path(self, path: str):
-        """
-        Grab recursive shard states and save all shard states to the specified checkpoint folder
-        """
-        self.report(f"Saving dataset to {path}")
-        start = time.time()
-        os.makedirs(path, exist_ok=True)
-        torch.save(self.state_dict(), os.path.join(path, f"loader_state_{self.rank}.pth"))
-        self.report(
-            f"Dataset successfully saved to {path}! Save time: {time.time() - start}"
-        )
-
-    def load_from_path(self, path: str):
-        """
-        Count shard files in the specified checkpoint folder and determine overlap with current
-        rank and worldsize partition. Load only matching shardfile(s) and pass to load_state_dict.
-        This is more efficient than sharding the full loaded state.
-        """
-        save_path = self._validate_ckp_path(self.path, False)
-        if len(save_path) > 0:
-            self.report(
-                f"  Dataset: Detected a checkpoint in the save directory {save_path}. Restoring from this checkpoint."
-            )
-            path = save_path
-        else:
-            load_path = self._validate_ckp_path(self.load_path, True)
-            if len(load_path) == 0:
-                return
-            else:
-                path = load_path
-                # When loading from external ckp, always reset step count
-                self.step = 0
-        # Proceed
-        start = time.time()
-        fileshards = [x for x in os.listdir(path) if "loader" in x]
-        fileshards = sorted(fileshards, key=lambda x: int(x.split("_")[2][:-4]))
-        assert (
-            len(fileshards) > 0
-        ), "Checkpoint directory must contain checkpoint files with 'loader' in the name"
-        self.dataset.load_worldsize = len(fileshards)
-        # Grab only the shard files holding data we currently own
-        my_fileshards = _shard_inclusive(fileshards, self.rank, self.worldsize)
-        states = [torch.load(os.path.join(path, x)) for x in my_fileshards]
-        self.dataset.load_state_dict(states, True)
-        self.report(f"Dataset checkpoint loaded! Load time: {time.time() - start}")
-
-
 class PreloadBufferDataset(_WrapperDataset):
     """
     Wrapper for a StatefulDataset that implements data shuffling via a single in/out buffer.
@@ -621,14 +431,13 @@ class PreloadBufferDataset(_WrapperDataset):
         out = super().state_dict()
         return out
 
-    def load_state_dict(self, state_dicts, sharded_input=False):
-        sharded_dicts = super().load_state_dict(state_dicts, sharded_input)
+    def load_state_dict(self, state_dict):
+        super().load_state_dict(state_dict)
         # Manually set generator state if it exists
         if self.g_state is not None:
             self.generator.set_state(self.g_state)
         # Manually set buffer size
         self.buffer_size = len(self.buffer)
-        return sharded_dicts
 
 
 class BufferDataset(_WrapperDataset):
@@ -1067,17 +876,13 @@ class StreamingDocDataset(_StatefulDataset):
                     self.chunk_index = j
                     yield self._construct_chunk(j, doc, n_chunks)
 
-    def load_state_dict(self, state_dicts, sharded_input=False):
+    def load_state_dict(self, state_dict):
         self.setup()
-        assert (
-            self.load_worldsize == self.worldsize
-        ), f"StreamingDocDataset does not support rescaling (ckp size: {self.load_worldsize}, world size: {self.worldsize}). Please use a ScalableShardDataset."
         d = self.dataset
-        out = super().load_state_dict(state_dicts, sharded_input)
+        super().load_state_dict(state_dict)
         assert (
             d == self.dataset
         ), f"Dataset mismatch: checkpoint contains {self.dataset}, expected {d}"
-        return out
     
     def state_dict(self):
         return super().state_dict()
@@ -1131,9 +936,9 @@ class ScalableShardDataset(_WrapperDataset):
         # For scaling up or down, logical position is meaningless, and reset
         self.current_reader = 0
         self.logical_shard_states = None
+        self.load_worldsize = self.worldsize
 
-        self.state_params = ["current_reader"]
-        self.reshard_params = ["logical_shard_states"]
+        self.state_params = ["current_reader", "logical_shard_states"]
 
     def setup(self):
         if not self.is_setup:
@@ -1150,7 +955,6 @@ class ScalableShardDataset(_WrapperDataset):
             for i in range(self.n_logicals):
                 self.data.append(deepcopy(self.dataset))
                 self.data[-1].worldsize = n_logical_shards
-                self.data[-1].load_worldsize = n_logical_shards
                 self.data[-1].rank = self.logicals_owned[i]
                 self.data[-1].local_worldsize = 1
                 self.data[-1].datapath = self.datapath
@@ -1161,6 +965,33 @@ class ScalableShardDataset(_WrapperDataset):
                     )
             [d.setup() for d in self.data]
 
+    def _reshard(self, sharded_list):
+        """
+        Sharded_list is a list of lists, where each "shard" sublist must have the same length.
+        These shards should tightly span only the partition of data owned by this worker.
+        (i.e. if global_list is the list of all entries, sharded_list = _shard_inclusive(global_list) ).
+        Determine fractional ownership of shards, and get the flattened partition owned by this worker.
+        """
+        # How many shards did _shard_inclusive() drop to the left of sharded_list?
+        shard_offset = math.floor(self.load_worldsize * self.rank / self.worldsize)
+        # How long are the list shards?
+        shard_len = len(sharded_list[0])
+        for i, shard in enumerate(sharded_list):
+            assert (
+                len(shard) == shard_len
+            ), f"Shard {i} with length {len(shard)} does not match expected {shard_len}"
+        # How many list items did _shard_inclusive() drop to the left of the flattened sharded_list?
+        item_offset = shard_len * shard_offset
+        # How many list items are there in total?
+        n_items = self.load_worldsize * shard_len
+        # The indices of the flattened sharded_list that this worker owns
+        my_items = range(
+            int(n_items * self.rank / self.worldsize) - item_offset,
+            int(n_items * (self.rank + 1) / self.worldsize) - item_offset,
+        )
+        # Pull out owned items
+        return [sharded_list[i // shard_len][i % shard_len] for i in my_items]
+
     def __iter__(self):
         self.setup()
         # Grab one doc at a time in random order
@@ -1169,12 +1000,8 @@ class ScalableShardDataset(_WrapperDataset):
             ind = self.current_reader
             # Read doc
             out = next(data[ind])
-            while out[-1] != self.delimiter:
-                yield out
-                out = next(data[ind])
-            # Update state to show we've finished the doc
+            # Update state
             self.current_reader = (self.current_reader + 1) % self.n_logicals
-            # Return final piece of doc
             yield out
 
     def state_dict(self):
@@ -1183,15 +1010,29 @@ class ScalableShardDataset(_WrapperDataset):
         self.logical_shard_states = [d.state_dict() for d in self.data]
         return _StatefulDataset.state_dict(self)
 
-    def load_state_dict(self, state_dicts, sharded_input=False):
+    def load_state_dict(self, state_dicts, sharded=False):
+        """
+        If state_dicts is a single state dict, proceeds without rescaling
+        If state_dicts is a list and sharded is True, expects the inclusive partition of all state dicts
+        If state_dicts is a list and sharded is False, expects the full set of state dicts
+        """
         self.setup()
-        sharded_dicts = _StatefulDataset.load_state_dict(
-            self, state_dicts, sharded_input
-        )
+        if isinstance(state_dicts, dict):
+            _StatefulDataset.load_state_dict(self, state_dicts)
+            self.logical_shard_states = state_dicts[self.statename("logical_shard_states")]
+        else:
+            if not sharded:
+                self.load_worldsize = len(state_dicts)
+                state_dicts = _shard_inclusive(state_dicts, self.rank, self.worldsize)
+            _StatefulDataset.load_state_dict(self, state_dicts[0])
+            self.logical_shard_states = self._reshard(
+                [sd[self.statename("logical_shard_states")] for sd in state_dicts]
+            )
+            # Reset current reader
+            self.current_reader = 0
         # Recursive set
         for i in range(self.n_logicals):
-            self.data[i].load_state_dict([self.logical_shard_states[i]], True)
-        return sharded_dicts
+            self.data[i].load_state_dict(self.logical_shard_states[i])
 
 
 class SamplingDataset(_WrapperDataset):
@@ -1309,21 +1150,160 @@ class SamplingDataset(_WrapperDataset):
         out.update(_StatefulDataset.state_dict(self))
         return out
 
-    def load_state_dict(self, state_dicts, sharded_input=False):
+    def load_state_dict(self, state_dict):
         self.setup()
         # Load stats
-        sharded_dicts = _StatefulDataset.load_state_dict(
-            self, state_dicts, sharded_input
-        )
+        _StatefulDataset.load_state_dict(self, state_dict)
         # Load sub-iterator states
         for i, subdata in enumerate(self.data):
             # Grab just that sub-iterator across all ranks
-            subdata.load_worldsize = self.load_worldsize
-            subdata.load_state_dict(
-                [
-                    sd[self.statename("sample_iterator_states")][i]
-                    for sd in sharded_dicts
-                ],
-                True,
+            subdata.load_state_dict(state_dict[self.statename("sample_iterator_states")][i])
+
+
+class CheckpointDataset(_WrapperDataset):
+    """
+    Wrapper for a _StatefulDataset that implements auto-checkpoint saving every n steps.
+    Useful for setting n_workers > 0, so that workers do not rely on the master process
+    for state saving (inter-process communication unsupported in PyTorch datasets).
+    ...
+    Args
+    ----
+    dataset : _StatefulDataset
+        Fully instantiated dataset
+    load_path : str
+        Absolute path to checkpoint load directory. If a checkpoint exists, loads it.
+    interval : int
+        Saves a new checkpoint every interval.
+    steps_per_batch : optional[int]
+        Number of steps required to fill a single batch. Increments interval only
+        when a full batch is formed. Defaults to 1.
+    save_path : optional[str]
+        Absolute path to checkpoint save directory. Defaults to load_path.
+    """
+
+    def __init__(
+        self,
+        dataset: ScalableShardDataset,
+        load_path: str,
+        interval: int,
+        steps_per_batch: int = 1,
+        save_path: str = "",
+    ):
+        super().__init__(dataset)
+        self.interval = interval
+        self.spb = steps_per_batch
+        load_path = os.path.join(load_path, "checkpoints")
+        if len(save_path) == 0:
+            save_path = load_path
+        else:
+            save_path = os.path.join(save_path, "checkpoints")
+        self.load_path = load_path
+        self.path = save_path
+        self.step = 0
+        self.ministep = 0
+
+    def setup(self):
+        if not self.is_setup:
+            super().setup()
+            self.load_from_path(self.load_path)
+
+    def __iter__(self):
+        self.setup()
+        dataset = iter(self.dataset)
+        while True:
+            yield next(dataset)
+            self.ministep += 1
+            if self.ministep == self.spb:
+                self.ministep = 0
+                self.step += 1
+                if self.step % self.interval == 0:
+                    newpath = os.path.join(self.path, "step_" + str(self.step) + "_ckp")
+                    self.save_to_path(newpath)
+
+    def report(self, msg):
+        if self.rank == 0:
+            print(msg)
+
+    def _validate_ckp_path(self, path: str, verbose: bool = False):
+        """
+        Interpret path to appropriate checkpoint.
+        If found, return modified path.
+        If not found, return empty string.
+        """
+        # Does path exists, and if it exists, is it non-empty?
+        if not os.path.exists(path) or len(os.listdir(path)) == 0:
+            if verbose:
+                self.report(
+                    f"  Dataset: No valid checkpoint detected at {path}, dataset starting from scratch."
+                )
+            return ""
+        # Check latest path, using ckp naming syntax
+        latest = get_latest(path, key=lambda path: int(path.split("_")[-2]))
+        if verbose:
+            self.report(f"Checkpoint detected at {latest}")
+        # If item is not a folder, exit early
+        if os.path.isfile(latest):
+            if verbose:
+                self.report(
+                    f"  Dataset: Detected checkpoint {latest} is a single file with no dataset info."
+                    + " Dataset starting from scratch."
+                )
+            return ""
+        # If item is a folder, check that it contains shard files
+        if len([x for x in os.listdir(latest) if "loader" in x]) == 0:
+            if verbose:
+                self.report(
+                    f"  Dataset: Detected checkpoint {latest} exists but contains no dataset checkpoints."
+                    + " Dataset starting from scratch."
+                )
+            return ""
+        # If item is a folder, get the step count
+        self.step = int(latest.split("_")[-2])
+        return latest
+
+    def save_to_path(self, path: str):
+        """
+        Grab recursive shard states and save all shard states to the specified checkpoint folder
+        """
+        self.report(f"Saving dataset to {path}")
+        start = time.time()
+        os.makedirs(path, exist_ok=True)
+        torch.save(self.state_dict(), os.path.join(path, f"loader_state_{self.rank}.pth"))
+        self.report(
+            f"Dataset successfully saved to {path}! Save time: {time.time() - start}"
+        )
+
+    def load_from_path(self, path: str):
+        """
+        Count shard files in the specified checkpoint folder and determine overlap with current
+        rank and worldsize partition. Load only matching shardfile(s) and pass to load_state_dict.
+        This is more efficient than sharding the full loaded state.
+        """
+        save_path = self._validate_ckp_path(self.path, False)
+        if len(save_path) > 0:
+            self.report(
+                f"  Dataset: Detected a checkpoint in the save directory {save_path}. Restoring from this checkpoint."
             )
-        return sharded_dicts
+            path = save_path
+        else:
+            load_path = self._validate_ckp_path(self.load_path, True)
+            if len(load_path) == 0:
+                return
+            else:
+                path = load_path
+                # When loading from external ckp, always reset step count
+                self.step = 0
+        # Proceed
+        start = time.time()
+        fileshards = [x for x in os.listdir(path) if "loader" in x]
+        fileshards = sorted(fileshards, key=lambda x: int(x.split("_")[2][:-4]))
+        assert (
+            len(fileshards) > 0
+        ), "Checkpoint directory must contain checkpoint files with 'loader' in the name"
+        self.dataset.load_worldsize = len(fileshards)
+        # Grab only the shard files holding data we currently own
+        my_fileshards = _shard_inclusive(fileshards, self.rank, self.worldsize)
+        states = [torch.load(os.path.join(path, x)) for x in my_fileshards]
+        self.dataset.load_state_dict(states, sharded=True)
+        self.report(f"Dataset checkpoint loaded! Load time: {time.time() - start}")
+

@@ -92,7 +92,7 @@ def multi_reload_stress_check(d):
 
         states = [deepcopy(d.state_dict()) for d in datasets]
 
-        [d.load_state_dict(states) for d in datasets2]
+        [d.load_state_dict(s) for d,s in zip(datasets2,states)]
 
         loaders2 = [iter(d) for d in datasets2]
 
@@ -281,7 +281,7 @@ def reload_epoch_check(loader):
         )
         for i in range(2)
     ]  # Length 300
-    [d.load_state_dict(states) for d in datasets2]
+    [d.load_state_dict(s) for d,s in zip(datasets2,states)]
     loaders2 = [iter(d) for d in datasets2]
 
     for j in range(100):
@@ -320,7 +320,7 @@ def reload_single_epoch_check(loader):
         )
         for i in range(2)
     ]  # Length 300
-    [d.load_state_dict(states) for d in datasets2]
+    [d.load_state_dict(s) for d,s in zip(datasets2,states)]
     loaders2 = [iter(d) for d in datasets2]
 
     ins = []
@@ -454,6 +454,11 @@ def basic_sampler_scalable(
     max_chunksize=1000,
     n_logical_shards=5,
 ):
+    return ScalableShardDataset(
+        basic_sampler(rank, worldsize, datasets, weights, max_chunksize),
+        -1,
+        n_logical_shards,
+    )
     return SamplingDataset(
         tmpdir.name,
         basic_scalable(
@@ -725,44 +730,45 @@ def test_scalable_partitioning():
 #             ), f"Step {j+1}, dataset {i+1}: chunk starting with {out[0]} has already appeared in the epoch"
 
 
-def test_scalable_sampler_reload_scale():
+def test_scalable_reload_epoch():
     """
-    As test_reload_epoch, but in this case we scale from 2 workers to 4 (complete 1/3 epoch, reload, finish without duplication).
-    Because logical shards and sampling ratios won't be exact, take a few extra steps then check that epoch is complete.
+    As test_reload_epoch, but in this case we scale from 2 workers to 5 
+    (complete 1/3 epoch, reload, finish without duplication and check epoch is complete).
     """
-    datasets = [
-        basic_sampler_scalable(i, 2, max_chunksize=40, n_logical_shards=8)
-        for i in range(2)
-    ]  # Length 300
-    loaders = [iter(d) for d in datasets]
+    for layer in [basic_scalable, basic_sampler_scalable]:
+        datasets = [
+            layer(i, 2, max_chunksize=40, n_logical_shards=10)
+            for i in range(2)
+        ]  # Length 300
+        loaders = [iter(d) for d in datasets]
 
-    ins = []
-    for _ in range(50):
-        out = next(loaders[0])
-        ins.append(out[0])
-    for _ in range(50):
-        out = next(loaders[1])
-        ins.append(out[0])
-
-    states = [d.state_dict() for d in datasets]
-
-    datasets2 = [
-        basic_sampler_scalable(i, 4, max_chunksize=40, n_logical_shards=8)
-        for i in range(4)
-    ]  # Length 300
-    [d.load_state_dict(states) for d in datasets2]
-    loaders2 = [iter(d) for d in datasets2]
-
-    for i in range(4):
-        for _ in range(55):
-            out = next(loaders2[i])
+        ins = []
+        for _ in range(50):
+            out = next(loaders[0])
+            ins.append(out[0])
+        for _ in range(50):
+            out = next(loaders[1])
             ins.append(out[0])
 
-    for suf in [0, 40, 80]:
-        for i in range(100):
-            assert (
-                i * 100 + suf in ins
-            ), f"Expected value {i*100+suf} not found in output set {ins}"
+        states = [d.state_dict() for d in datasets]
+
+        datasets2 = [
+            layer(i, 5, max_chunksize=40, n_logical_shards=10)
+            for i in range(5)
+        ]  # Length 300
+        [d.load_state_dict(states) for d in datasets2]
+        loaders2 = [iter(d) for d in datasets2]
+
+        for i in range(5):
+            for _ in range(40):
+                out = next(loaders2[i])
+                ins.append(out[0])
+
+        for suf in [0, 40, 80]:
+            for i in range(100):
+                assert (
+                    i * 100 + suf in ins
+                ), f"Expected value {i*100+suf} not found in output set {ins}"
 
 
 # BUFFERDATASET TESTS
@@ -941,9 +947,6 @@ def test_checkpoint_rescale():
         # Check for coverage
         for i in range(100):
             assert i*100 in all_vals, i*100
-
-
-
         
 
 def test_checkpoint_reload_match():
