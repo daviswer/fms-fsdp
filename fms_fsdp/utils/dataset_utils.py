@@ -1132,17 +1132,15 @@ class ScalableShardDataset(_WrapperDataset):
         self.data: List[StreamingDocDataset] = []
         self.logicals_owned: List[int] = []
         self.n_logicals = 0
-        self.n_docs_remaining: List[int] = []
         self.generator = None
 
         # Position "state", used only for maintaining order when n_workers is unchanged
         # For scaling up or down, logical position is meaningless, and reset
-        self.current_reader = None
+        self.current_reader = 0
         self.logical_shard_states = None
-        self.g_state = None
 
-        self.state_params = ["current_reader", "g_state"]
-        self.reshard_params = ["n_docs_remaining", "logical_shard_states"]
+        self.state_params = ["current_reader"]
+        self.reshard_params = ["logical_shard_states"]
 
     def setup(self):
         if not self.is_setup:
@@ -1169,46 +1167,25 @@ class ScalableShardDataset(_WrapperDataset):
                         f"Worker {self.rank} assembled logical shard {self.logicals_owned[i]}, {i+1} of {self.n_logicals}"
                     )
             [d.setup() for d in self.data]
-            self.n_docs_remaining = [d._len for d in self.data]
-
-            self.generator = torch.Generator().manual_seed(self.rank)
 
     def __iter__(self):
         self.setup()
         # Grab one doc at a time in random order
         data = [iter(d) for d in self.data]
         while True:
-            # Sample logical shard (or load from ckp)
-            if self.current_reader is not None:
-                ind = self.current_reader
-            else:
-                assert (
-                    sum(self.n_docs_remaining) > 0
-                ), f"No documents detected in {self.datapath}"
-                ind = torch.multinomial(
-                    torch.tensor(self.n_docs_remaining, dtype=torch.float),
-                    1,
-                    generator=self.generator,
-                ).item()
-            self.current_reader = ind
+            ind = self.current_reader
             # Read doc
             out = next(data[ind])
             while out[-1] != self.delimiter:
                 yield out
                 out = next(data[ind])
             # Update state to show we've finished the doc
-            self.current_reader = None
-            self.n_docs_remaining[ind] -= 1
-            if sum(self.n_docs_remaining) == 0:
-                self.n_docs_remaining = [d._len for d in self.data]
-                self.generator.manual_seed(self.rank)
+            self.current_reader = (self.current_reader + 1) % self.n_logicals
             # Return final piece of doc
             yield out
 
     def state_dict(self):
         self.setup()
-        # Write generator state manually
-        self.g_state = self.generator.get_state()
         # Recursive fetch
         self.logical_shard_states = [d.state_dict() for d in self.data]
         return _StatefulDataset.state_dict(self)
@@ -1218,9 +1195,6 @@ class ScalableShardDataset(_WrapperDataset):
         sharded_dicts = _StatefulDataset.load_state_dict(
             self, state_dicts, sharded_input
         )
-        # Manually set generator state if it exists
-        if self.g_state is not None:
-            self.generator.set_state(self.g_state)
         # Recursive set
         for i in range(self.n_logicals):
             self.data[i].load_state_dict([self.logical_shard_states[i]], True)
