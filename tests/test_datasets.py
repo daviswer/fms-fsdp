@@ -859,19 +859,20 @@ def test_checkpoint_rescale():
     Check that the auto-checkpointer saves and loads correctly across different world sizes.
     Complete 40% epoch, finish the other 60%, verify that evey point appears once.
     """
-    datasets = [basic_scalable(i, 5, n_logical_shards=20) for i in range(5)]
+    datasets = [basic_loader(i, 5) for i in range(5)]
     datasets = [
-        CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 8, 1)
+        CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 2, 1)
         for x in datasets
     ]
+    datasets = [ScalableShardDataset(x, -1, 20) for x in datasets]
     loaders = [iter(x) for x in datasets]
 
     old_vals = []
-    for _ in range(8):
-        for loader in loaders:
+    for loader in loaders:
+        for _ in range(8):
             old_vals.append(next(loader)[0])
     # Prefetch where ckp is actually saved
-    [next(l) for l in loaders]
+    [next(l) for l in loaders for _ in range(4)]
 
     # Assert checkpoint exists and is properly formatted
     ckps = os.listdir(os.path.join(tmpdir.name, "ckp_rescale_test", "checkpoints"))
@@ -880,18 +881,17 @@ def test_checkpoint_rescale():
         os.path.join(tmpdir.name, "ckp_rescale_test", "checkpoints", ckps[0])
     )
     assert (
-        len(ckp_shards) == 5
-    ), f"Expected five checkpoint shards (found {len(ckp_shards)})"
+        len(ckp_shards) == 20
+    ), f"Expected twenty checkpoint shards (found {len(ckp_shards)})"
 
     for worldsize in [1, 4, 10, 20]:
         # Create a second loader, pointing to first's checkpoint
-        datasets = [
-            basic_scalable(i, worldsize, n_logical_shards=20) for i in range(worldsize)
-        ]
+        datasets = [basic_loader(i, worldsize) for i in range(worldsize)]
         datasets = [
             CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 100, 1)
             for x in datasets
         ]
+        datasets = [ScalableShardDataset(x, -1, 20) for x in datasets]
         [d.setup() for d in datasets]
         loaders = [iter(d) for d in datasets]
         new_vals = []

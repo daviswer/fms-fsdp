@@ -906,7 +906,7 @@ class ScalableShardDataset(_WrapperDataset):
 
     def __init__(
         self,
-        dataset: StreamingDocDataset,
+        dataset: _StatefulDataset,
         delimiter_token: Any,
         n_logical_shards: int = 2048,
         verbose=False,
@@ -1007,11 +1007,10 @@ class ScalableShardDataset(_WrapperDataset):
         self.logical_shard_states = [d.state_dict() for d in self.data]
         return _StatefulDataset.state_dict(self)
 
-    def load_state_dict(self, state_dicts, sharded=False):
+    def load_state_dict(self, state_dicts):
         """
         If state_dicts is a single state dict, proceeds without rescaling
-        If state_dicts is a list and sharded is True, expects the inclusive partition of all state dicts
-        If state_dicts is a list and sharded is False, expects the full set of state dicts
+        If state_dicts is a list, expects the full set of state dicts
         """
         self.setup()
         if isinstance(state_dicts, dict):
@@ -1020,9 +1019,8 @@ class ScalableShardDataset(_WrapperDataset):
                 self.statename("logical_shard_states")
             ]
         else:
-            if not sharded:
-                self.load_worldsize = len(state_dicts)
-                state_dicts = _shard_inclusive(state_dicts, self.rank, self.worldsize)
+            self.load_worldsize = len(state_dicts)
+            state_dicts = _shard_inclusive(state_dicts, self.rank, self.worldsize)
             _StatefulDataset.load_state_dict(self, state_dicts[0])
             self.logical_shard_states = self._reshard(
                 [sd[self.statename("logical_shard_states")] for sd in state_dicts]
@@ -1184,7 +1182,7 @@ class CheckpointDataset(_WrapperDataset):
 
     def __init__(
         self,
-        dataset: ScalableShardDataset,
+        dataset: _StatefulDataset,
         load_path: str,
         interval: int,
         steps_per_batch: int = 1,
@@ -1206,6 +1204,11 @@ class CheckpointDataset(_WrapperDataset):
     def setup(self):
         if not self.is_setup:
             super().setup()
+            # If we have n workers per device, x training steps means x/n calls to this worker
+            assert (
+                self.interval % self.local_worldsize == 0
+            ), "Number of workers per device must divide checkpoint interval evenly to ensure complete checkpoints"
+            self.interval = self.interval // self.local_worldsize
             self.load_from_path(self.load_path)
 
     def __iter__(self):
@@ -1277,11 +1280,6 @@ class CheckpointDataset(_WrapperDataset):
         )
 
     def load_from_path(self, path: str):
-        """
-        Count shard files in the specified checkpoint folder and determine overlap with current
-        rank and worldsize partition. Load only matching shardfile(s) and pass to load_state_dict.
-        This is more efficient than sharding the full loaded state.
-        """
         save_path = self._validate_ckp_path(self.path, False)
         if len(save_path) > 0:
             self.report(
@@ -1301,11 +1299,42 @@ class CheckpointDataset(_WrapperDataset):
         fileshards = [x for x in os.listdir(path) if "loader" in x]
         fileshards = sorted(fileshards, key=lambda x: int(x.split("_")[2][:-4]))
         assert (
-            len(fileshards) > 0
-        ), "Checkpoint directory must contain checkpoint files with 'loader' in the name"
-        self.dataset.load_worldsize = len(fileshards)
-        # Grab only the shard files holding data we currently own
-        my_fileshards = _shard_inclusive(fileshards, self.rank, self.worldsize)
-        states = [torch.load(os.path.join(path, x)) for x in my_fileshards]
-        self.dataset.load_state_dict(states, sharded=True)
+            len(fileshards) == self.worldsize
+        ), f"Number of checkpoint files {len(fileshards)} does not match number of workers {self.worldsize}"
+        state = torch.load(os.path.join(path, fileshards[self.rank]))
+        self.dataset.load_state_dict(state)
         self.report(f"Dataset checkpoint loaded! Load time: {time.time() - start}")
+
+    # def load_from_path(self, path: str):
+    #     """
+    #     Count shard files in the specified checkpoint folder and determine overlap with current
+    #     rank and worldsize partition. Load only matching shardfile(s) and pass to load_state_dict.
+    #     This is more efficient than sharding the full loaded state.
+    #     """
+    #     save_path = self._validate_ckp_path(self.path, False)
+    #     if len(save_path) > 0:
+    #         self.report(
+    #             f"  Dataset: Detected a checkpoint in the save directory {save_path}. Restoring from this checkpoint."
+    #         )
+    #         path = save_path
+    #     else:
+    #         load_path = self._validate_ckp_path(self.load_path, True)
+    #         if len(load_path) == 0:
+    #             return
+    #         else:
+    #             path = load_path
+    #             # When loading from external ckp, always reset step count
+    #             self.step = 0
+    #     # Proceed
+    #     start = time.time()
+    #     fileshards = [x for x in os.listdir(path) if "loader" in x]
+    #     fileshards = sorted(fileshards, key=lambda x: int(x.split("_")[2][:-4]))
+    #     assert (
+    #         len(fileshards) > 0
+    #     ), "Checkpoint directory must contain checkpoint files with 'loader' in the name"
+    #     self.dataset.load_worldsize = len(fileshards)
+    #     # Grab only the shard files holding data we currently own
+    #     my_fileshards = _shard_inclusive(fileshards, self.rank, self.worldsize)
+    #     states = [torch.load(os.path.join(path, x)) for x in my_fileshards]
+    #     self.dataset.load_state_dict(states, sharded=True)
+    #     self.report(f"Dataset checkpoint loaded! Load time: {time.time() - start}")
