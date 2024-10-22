@@ -459,15 +459,6 @@ def basic_sampler_scalable(
         -1,
         n_logical_shards,
     )
-    return SamplingDataset(
-        tmpdir.name,
-        basic_scalable(
-            rank, worldsize, datasets[:1], max_chunksize, n_logical_shards, None
-        ),
-        -1,
-        datasets,
-        weights,
-    )
 
 
 def test_single_epoch():
@@ -489,9 +480,7 @@ def test_two_epoch():
 def test_chunk():
     # Single shard, single loader, two chunks/doc plus a delimiter token: every chunk appears once in an epoch
     chunk_check(functools.partial(basic_loader, max_chunksize=50), True)
-    chunk_check(functools.partial(basic_scalable, max_chunksize=50))
     chunk_check(functools.partial(basic_sampler, max_chunksize=50))
-    chunk_check(functools.partial(basic_sampler_scalable, max_chunksize=50))
 
 
 def test_two_loader():
@@ -532,8 +521,6 @@ def test_eos_bos_chunking():
     # Single shard, single loader: check that enabling/disabling bos tokens maintains correct chunking behavior
     single_doc_bos_eos_check(basic_loader, False)
     single_doc_bos_eos_check(basic_loader, True)
-    single_doc_bos_eos_check(basic_scalable, False)
-    single_doc_bos_eos_check(basic_scalable, True)
 
 
 # SUBDATASET WEIGHTING CHECKS
@@ -575,8 +562,7 @@ def test_sampler_rates():
                 ), f"Output {i} length {len(out)} does not match expected 51. Sequence so far: {s}"
 
     for i in range(3):
-        for m in [basic_sampler, basic_sampler_scalable]:
-            check_rates(weights[i], target_rate[i], burnin[i], m)
+        check_rates(weights[i], target_rate[i], burnin[i], basic_sampler)
 
 
 # STRESS TEST
