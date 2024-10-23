@@ -923,7 +923,7 @@ def test_checkpoint_reload_match():
             next(loader)
 
     # Assert checkpoint exists and is properly formatted
-    time.sleep(60)
+    time.sleep(1)
     ckps = os.listdir(os.path.join(tmpdir.name, "ckp_test", "checkpoints"))
     assert len(ckps) == 1, f"Expected only one checkpoint (found {len(ckps)})"
     ckp_shards = os.listdir(

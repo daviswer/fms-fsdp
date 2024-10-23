@@ -1178,12 +1178,13 @@ class SamplingDataset(_WrapperDataset):
         self.setup()
         # Manually add state of all subloaders to self state
         iterator_states = [d.state_dict() for d in self.data]
-        prefix = self.statename("iterator")
-        keys = iterator_states[0].keys()
-        out = {}
-        for i, d in enumerate(iterator_states):
-            for k in keys:
-                out[prefix + "." + str(i) + "." + k] = d[k]
+        assert len(iterator_states) > 0, f"Worker {self.rank} owns no datasets"
+        # Flip list[dict[any]] to dict[list[any]]
+        prefix = self.statename("states.")
+        out = {
+            prefix + k: [d[k] for d in iterator_states]
+            for k in iterator_states[0].keys()
+        }
         out.update(_StatefulDataset.state_dict(self))
         return out
 
@@ -1192,12 +1193,21 @@ class SamplingDataset(_WrapperDataset):
         # Load stats
         _StatefulDataset.load_state_dict(self, state_dict)
         # Load sub-iterator states
-        prefix = self.statename("iterator")
-        for i, subdata in enumerate(self.data):
-            p = prefix + "." + str(i) + "."
-            d = {k[len(p) :]: v for k, v in state_dict.items() if p in k}
-            subdata.load_state_dict(d)
-        self.iterator_states = None
+        prefix = self.statename("states.")
+        # Flip dict[list[any]] to list[dict[any]]
+        iterator_states = [
+            {
+                k[k.find(prefix) + len(prefix) :]: v[i]
+                for k, v in state_dict.items()
+                if prefix in k
+            }
+            for i in range(len(self.data))
+        ]
+        # Load individual state sub-dicts
+        [
+            self.data[i].load_state_dict(iterator_states[i])
+            for i in range(len(self.data))
+        ]
 
 
 class CheckpointDataset(_WrapperDataset):
