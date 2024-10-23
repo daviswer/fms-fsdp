@@ -459,6 +459,8 @@ class BufferDataset(_WrapperDataset):
         Token to append to every output sequence. If None, no token is added. Type should match data type.
     pad_token : any | None
         Token used to fill out output sequence. Type should match data type.
+    max_buffer_len : int
+        Truncate buffers over this size. Required for distributed checkpointing (constant-size buffers).
     """
 
     def __init__(
@@ -469,6 +471,7 @@ class BufferDataset(_WrapperDataset):
         bos_token=None,
         eos_token=None,
         pad_token=None,
+        max_buffer_len=2048,
     ):
         super().__init__(dataset)
         self.len = seq_len
@@ -479,12 +482,14 @@ class BufferDataset(_WrapperDataset):
         self.eos = eos_token
         self.pad = pad_token
         self.pack_hard = pack_hard
+        self.max_buffer_len = max_buffer_len
+        self.buffer_len = 0
         if not pack_hard:
             assert (
                 pad_token is not None
             ), "Error: if using pads, you must supply a pad_token"
 
-        self.state_params = ["buffer"]
+        self.state_params = ["buffer", "buffer_len"]
 
     def _get_buffer(self, iterable, length, buffer):
         # Pull data until buffer is about to overrun, return exactly proper length
@@ -531,8 +536,24 @@ class BufferDataset(_WrapperDataset):
         dataset = iter(self.dataset)
         while True:
             out, buffer = self._get_buffer(dataset, self.len, self.buffer)
-            self.buffer = buffer
+            self.buffer = buffer[:self.max_buffer_len]
             yield out
+
+    def state_dict(self):
+        # Pad out the buffer to constant size, log the real length
+        # Constant size buffer is needed for distcp
+        self.buffer_len = len(self.buffer)
+        pad_val = 0 if len(self.buffer)==0 else self.buffer[-1]
+        self.buffer += [pad_val] * (self.max_buffer_len - self.buffer_len)
+        out = super().state_dict()
+        # Trim buffer back down to continue iterating
+        self.buffer = self.buffer[:self.buffer_len]
+        return out
+    
+    def load_state_dict(self, state_dict):
+        # Unpad the buffer
+        super().load_state_dict(state_dict)
+        self.buffer = self.buffer[:self.buffer_len]
 
 
 class StreamingDocDataset(_StatefulDataset):
@@ -1030,6 +1051,7 @@ class ScalableShardDataset(_WrapperDataset):
         # Recursive set
         for i in range(self.n_logicals):
             self.data[i].load_state_dict(self.logical_shard_states[i])
+        self.logical_shard_states = None
 
 
 class SamplingDataset(_WrapperDataset):
@@ -1094,7 +1116,8 @@ class SamplingDataset(_WrapperDataset):
         self.tokens_seen = [0] * len(self.datasets)
 
         self.current_iterator = -1
-        self.state_params = ["tokens_seen", "current_iterator"]
+        self.iterator_states = None
+        self.state_params = ["tokens_seen", "current_iterator", "iterator_states"]
 
     def setup(self):
         if not self.is_setup:
@@ -1139,13 +1162,8 @@ class SamplingDataset(_WrapperDataset):
     def state_dict(self):
         self.setup()
         # Manually add state of all subloaders to self state
-        out = {
-            self.statename("sample_iterator_states"): [
-                d.state_dict() for d in self.data
-            ]
-        }
-        out.update(_StatefulDataset.state_dict(self))
-        return out
+        self.iterator_states = [d.state_dict() for d in self.data]
+        return _StatefulDataset.state_dict(self)
 
     def load_state_dict(self, state_dict):
         self.setup()
@@ -1153,10 +1171,8 @@ class SamplingDataset(_WrapperDataset):
         _StatefulDataset.load_state_dict(self, state_dict)
         # Load sub-iterator states
         for i, subdata in enumerate(self.data):
-            # Grab just that sub-iterator across all ranks
-            subdata.load_state_dict(
-                state_dict[self.statename("sample_iterator_states")][i]
-            )
+            subdata.load_state_dict(self.iterator_states[i])
+        self.iterator_states = None
 
 
 class CheckpointDataset(_WrapperDataset):
@@ -1305,36 +1321,3 @@ class CheckpointDataset(_WrapperDataset):
         self.dataset.load_state_dict(state)
         self.report(f"Dataset checkpoint loaded! Load time: {time.time() - start}")
 
-    # def load_from_path(self, path: str):
-    #     """
-    #     Count shard files in the specified checkpoint folder and determine overlap with current
-    #     rank and worldsize partition. Load only matching shardfile(s) and pass to load_state_dict.
-    #     This is more efficient than sharding the full loaded state.
-    #     """
-    #     save_path = self._validate_ckp_path(self.path, False)
-    #     if len(save_path) > 0:
-    #         self.report(
-    #             f"  Dataset: Detected a checkpoint in the save directory {save_path}. Restoring from this checkpoint."
-    #         )
-    #         path = save_path
-    #     else:
-    #         load_path = self._validate_ckp_path(self.load_path, True)
-    #         if len(load_path) == 0:
-    #             return
-    #         else:
-    #             path = load_path
-    #             # When loading from external ckp, always reset step count
-    #             self.step = 0
-    #     # Proceed
-    #     start = time.time()
-    #     fileshards = [x for x in os.listdir(path) if "loader" in x]
-    #     fileshards = sorted(fileshards, key=lambda x: int(x.split("_")[2][:-4]))
-    #     assert (
-    #         len(fileshards) > 0
-    #     ), "Checkpoint directory must contain checkpoint files with 'loader' in the name"
-    #     self.dataset.load_worldsize = len(fileshards)
-    #     # Grab only the shard files holding data we currently own
-    #     my_fileshards = _shard_inclusive(fileshards, self.rank, self.worldsize)
-    #     states = [torch.load(os.path.join(path, x)) for x in my_fileshards]
-    #     self.dataset.load_state_dict(states, sharded=True)
-    #     self.report(f"Dataset checkpoint loaded! Load time: {time.time() - start}")

@@ -903,7 +903,7 @@ def test_checkpoint_reload_match():
         basic_sampler(i, 3, ["dataset_1", "dataset_2"], [3, 5], max_chunksize=17)
         for i in range(3)
     ]
-    datasets = [BufferDataset(d, 73, pack_hard=True, bos_token=-1) for d in datasets]
+    datasets = [BufferDataset(d, 73, pack_hard=True, bos_token=-1, max_buffer_len=200) for d in datasets]
     datasets = [
         CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_test"), 100, 2)
         for x in datasets
@@ -920,6 +920,7 @@ def test_checkpoint_reload_match():
             next(loader)
 
     # Assert checkpoint exists and is properly formatted
+    time.sleep(1)
     ckps = os.listdir(os.path.join(tmpdir.name, "ckp_test", "checkpoints"))
     assert len(ckps) == 1, f"Expected only one checkpoint (found {len(ckps)})"
     ckp_shards = os.listdir(
@@ -927,14 +928,14 @@ def test_checkpoint_reload_match():
     )
     assert (
         len(ckp_shards) == 3
-    ), f"Expected three checkpoint shards (found {len(ckp_shards)})"
+    ), f"Expected three checkpoint shards (found {len(ckp_shards)})" + str(ckp_shards)
 
     # Create a second loader, pointing to first's checkpoint
     datasets2 = [
         basic_sampler(i, 3, ["dataset_1", "dataset_2"], [3, 5], max_chunksize=17)
         for i in range(3)
     ]
-    datasets2 = [BufferDataset(d, 73, pack_hard=True, bos_token=-1) for d in datasets2]
+    datasets2 = [BufferDataset(d, 73, pack_hard=True, bos_token=-1, max_buffer_len=200) for d in datasets2]
     datasets2 = [
         CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_test"), 1000, 2)
         for x in datasets2
@@ -953,7 +954,8 @@ def test_checkpoint_reload_match():
         for x in datasets2
     ]
     loaders2 = [iter(x) for x in loaders2]
-    for _ in range(300):
+
+    for j in range(300):
         for loader, loader2 in zip(loaders, loaders2):
             out = sum(next(loader2))
             targ = sum(next(loader))
@@ -961,7 +963,7 @@ def test_checkpoint_reload_match():
                 targ
             ), f"Expected same output lengths, got {len(out)}, {len(targ)}"
             for i, (x, y) in enumerate(zip(out, targ)):
-                assert x == y, f"Mismatch in position {i}: got {x}, {y}"
+                assert x == y, f"Mismatch in step {j} position {i}: got {x}, {y}"
 
 
 # MULTIPROCESS DATALOADER WORKER TESTS
@@ -980,3 +982,25 @@ def test_multiprocess_epoch():
             # Add a dummy wrapper (append some pads) to test correct wrapper behavior
             d = [BufferDataset(x, 110, False, pad_token=-1) for x in d]
             single_epoch_loader_worker_check(d, n)
+
+
+
+def test_all():
+    test_buffer_delimiter_overlap()
+    test_buffer_format()
+    test_checkpoint_reload_match()
+    test_checkpoint_rescale()
+    test_chunk()
+    test_eos_bos_chunking()
+    test_multi_file()
+    test_multi_reload_stress()
+    test_multiprocess_epoch()
+    test_preload_buffer_uniformity()
+    test_reload_complete_epoch()
+    test_reload_epoch()
+    test_sampler_rates()
+    test_scalable_partitioning()
+    test_scalable_reload_epoch()
+    test_single_epoch()
+    test_two_epoch()
+    test_two_loader()
