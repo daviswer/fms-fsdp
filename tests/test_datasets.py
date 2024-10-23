@@ -648,7 +648,7 @@ def test_scalable_partitioning():
 
         for worldsize in [1, 2, 3, 6, 12]:
             datasets = [layer(i, worldsize) for i in range(worldsize)]
-            [d.load_state_dict(states) for d in datasets]
+            [d.load_state_dict(deepcopy(states)) for d in datasets]
             loaders = [iter(d) for d in datasets]
             outs = [[] for _ in datasets]
             steps = int(100 / worldsize * 1.25)
@@ -700,7 +700,7 @@ def test_scalable_reload_epoch():
         datasets2 = [
             layer(i, 5, max_chunksize=40, n_logical_shards=10) for i in range(5)
         ]  # Length 300
-        [d.load_state_dict(states) for d in datasets2]
+        [d.load_state_dict(deepcopy(states)) for d in datasets2]
         loaders2 = [iter(d) for d in datasets2]
 
         for i in range(5):

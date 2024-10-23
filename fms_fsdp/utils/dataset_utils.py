@@ -953,10 +953,9 @@ class ScalableShardDataset(_WrapperDataset):
         # Position "state", used only for maintaining order when n_workers is unchanged
         # For scaling up or down, logical position is meaningless, and reset
         self.current_reader = 0
-        self.logical_shard_states = None
         self.load_worldsize = self.worldsize
 
-        self.state_params = ["current_reader", "logical_shard_states"]
+        self.state_params = ["current_reader"]
 
     def setup(self):
         if not self.is_setup:
@@ -1025,8 +1024,15 @@ class ScalableShardDataset(_WrapperDataset):
     def state_dict(self):
         self.setup()
         # Recursive fetch
-        self.logical_shard_states = [d.state_dict() for d in self.data]
-        return _StatefulDataset.state_dict(self)
+        logical_shard_states = [d.state_dict() for d in self.data]
+        assert len(logical_shard_states) > 0, f"Worker {self.rank} owns no shards???"
+        # Flip list[dict[Any]] to dict[list[Any]]
+        state_dict = {
+            k: [d[k] for d in logical_shard_states]
+            for k in logical_shard_states[0].keys()
+        }
+        state_dict.update(_StatefulDataset.state_dict(self))
+        return state_dict
 
     def load_state_dict(self, state_dicts):
         """
@@ -1036,21 +1042,31 @@ class ScalableShardDataset(_WrapperDataset):
         self.setup()
         if isinstance(state_dicts, dict):
             _StatefulDataset.load_state_dict(self, state_dicts)
-            self.logical_shard_states = state_dicts[
-                self.statename("logical_shard_states")
+            # Remove all non-resharding state (this is destructive, in-place)
+            [state_dicts.pop(self.statename(n)) for n in self.state_params]
+            # Flip dict[list[any]] to list[dict[any]]
+            logical_shard_states = [
+                {k: v[i] for k, v in state_dicts.items()}
+                for i in range(self.n_logicals)
             ]
         else:
             self.load_worldsize = len(state_dicts)
             state_dicts = _shard_inclusive(state_dicts, self.rank, self.worldsize)
-            _StatefulDataset.load_state_dict(self, state_dicts[0])
-            self.logical_shard_states = self._reshard(
-                [sd[self.statename("logical_shard_states")] for sd in state_dicts]
-            )
-            # Reset current reader
-            self.current_reader = 0
+            # Remove all non-resharding state (this is destructive, in-place)
+            for d in state_dicts:
+                [d.pop(self.statename(n)) for n in self.state_params]
+            # Calculate old n_logicals: len of first entry of first dict in state_dicts
+            old_n_logicals = len(state_dicts[0][list(state_dicts[0].keys())[0]])
+            # Flip list[dict[list[any]]] to list[list[dict[any]]]
+            state_dicts = [
+                [{k: v[i] for k, v in d.items()} for i in range(old_n_logicals)]
+                for d in state_dicts
+            ]
+            # Perform resharding
+            logical_shard_states = self._reshard(state_dicts)
         # Recursive set
         for i in range(self.n_logicals):
-            self.data[i].load_state_dict(self.logical_shard_states[i])
+            self.data[i].load_state_dict(logical_shard_states[i])
         self.logical_shard_states = None
 
 
