@@ -649,7 +649,7 @@ class StreamingDocDataset(_StatefulDataset):
         self.percent_seen = 0
 
         self.state_params = [
-            "dataset",
+            # "dataset", # can't put strings into tensor
             "docset_index",
             "chunk_index",
             "epochs_seen",
@@ -893,17 +893,6 @@ class StreamingDocDataset(_StatefulDataset):
                 for j in range(residual_chunks):
                     self.chunk_index = j
                     yield self._construct_chunk(j, doc, n_chunks)
-
-    def load_state_dict(self, state_dict):
-        self.setup()
-        d = self.dataset
-        super().load_state_dict(state_dict)
-        assert (
-            d == self.dataset
-        ), f"Dataset mismatch: checkpoint contains {self.dataset}, expected {d}"
-
-    def state_dict(self):
-        return super().state_dict()
 
 
 class ScalableShardDataset(_WrapperDataset):
