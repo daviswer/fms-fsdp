@@ -1248,6 +1248,9 @@ class CheckpointDataset(_WrapperDataset):
         Absolute path to checkpoint load directory. If a checkpoint exists, loads it.
     interval : int
         Saves a new checkpoint every interval.
+    copies_per_device : int
+        Used to calculate the number of loader steps taken per global training step.
+        Must divide interval evenly.
     steps_per_batch : optional[int]
         Number of steps required to fill a single batch. Increments interval only
         when a full batch is formed. Defaults to 1.
@@ -1260,12 +1263,14 @@ class CheckpointDataset(_WrapperDataset):
         dataset: _StatefulDataset,
         load_path: str,
         interval: int,
+        copies_per_device: int,
         steps_per_batch: int = 1,
         save_path: str = "",
     ):
         super().__init__(dataset)
-        self.interval = interval
+        self.interval = interval // self.cpd
         self.spb = steps_per_batch
+        self.cpd = copies_per_device
         load_path = os.path.join(load_path, "checkpoints")
         if len(save_path) == 0:
             save_path = load_path
@@ -1279,11 +1284,6 @@ class CheckpointDataset(_WrapperDataset):
     def setup(self):
         if not self.is_setup:
             super().setup()
-            # If we have n workers per device, x training steps means x/n calls to this worker
-            assert (
-                self.interval % self.local_worldsize == 0
-            ), "Number of workers per device must divide checkpoint interval evenly to ensure complete checkpoints"
-            self.interval = self.interval // self.local_worldsize
             self.load_from_path(self.load_path)
 
     def __iter__(self):
@@ -1296,7 +1296,7 @@ class CheckpointDataset(_WrapperDataset):
                 self.ministep = 0
                 self.step += 1
                 if self.step % self.interval == 0:
-                    newpath = os.path.join(self.path, "step_" + str(self.step) + "_ckp")
+                    newpath = os.path.join(self.path, "step_" + str(self.step * self.cpd) + "_ckp")
                     self.save_to_path(newpath)
 
     def report(self, msg):
@@ -1337,7 +1337,7 @@ class CheckpointDataset(_WrapperDataset):
                 )
             return ""
         # If item is a folder, get the step count
-        self.step = int(latest.split("_")[-2])
+        self.step = int(latest.split("_")[-2]) // self.cpd
         return latest
 
     def save_to_path(self, path: str):

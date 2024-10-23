@@ -127,7 +127,8 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
     data = CheckpointDataset(
         data,
         cfg.ckpt_load_path if cfg.resuming_dataset else cfg.ckpt_save_path,
-        cfg.checkpoint_interval // local_shards,
+        cfg.checkpoint_interval,
+        local_shards,
         cfg.batch_size,
         cfg.ckpt_save_path,
     )
