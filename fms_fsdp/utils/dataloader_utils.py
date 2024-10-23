@@ -121,10 +121,11 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
     data = PreloadBufferDataset(data, 1000)
 
     # Enable auto-saving
+    assert (cfg.checkpoint_interval * cfg.logical_shards) % (world_size * cfg.num_workers) == 0, f"Logical shards per device {cfg.logical_shards / world_size / cfg.num_workers} must divide checkpoint interval {cfg.checkpoint_interval} evenly"
     data = CheckpointDataset(
         data,
         cfg.ckpt_load_path if cfg.resuming_dataset else cfg.ckpt_save_path,
-        cfg.checkpoint_interval,
+        (cfg.checkpoint_interval * cfg.logical_shards) // (world_size * cfg.num_workers),
         cfg.batch_size,
         cfg.ckpt_save_path,
     )
