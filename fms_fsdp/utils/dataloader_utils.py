@@ -100,12 +100,6 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         min_length=3,
         seed=cfg.seed,
     )
-    # Add rescaling/resharding
-    data = ScalableShardDataset(
-        data,
-        cfg.eos_token,
-        n_logical_shards=cfg.logical_shards,
-    )
     # Add multi-dataset handling
     data = SamplingDataset(
         cfg.data_path,
@@ -123,13 +117,8 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         eos_token=cfg.eol_token,
         pack_hard=True,
     )
-    # Shuffle outputs in length 10k buffer. Consecutive lines appear 10k steps apart on average.
-    data = PreloadBufferDataset(data, 10000)
-
-    # Apply desired postprocessing steps in sequence
-    data = PreprocessDataset(data, torch.IntTensor)
-    for p in postprocess:
-        data = PreprocessDataset(data, p)
+    # Shuffle outputs in length 1k buffer. Consecutive lines appear 1k steps apart on average.
+    data = PreloadBufferDataset(data, 1000)
 
     # Enable auto-saving
     data = CheckpointDataset(
@@ -139,6 +128,18 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         cfg.batch_size,
         cfg.ckpt_save_path,
     )
+
+    # Add rescaling/resharding
+    data = ScalableShardDataset(
+        data,
+        cfg.eos_token,
+        n_logical_shards=cfg.logical_shards,
+    )
+
+    # Apply desired postprocessing steps in sequence
+    data = PreprocessDataset(data, torch.IntTensor)
+    for p in postprocess:
+        data = PreprocessDataset(data, p)
 
     # Final wrapping
     assert (
