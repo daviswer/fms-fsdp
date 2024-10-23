@@ -903,7 +903,10 @@ def test_checkpoint_reload_match():
         basic_sampler(i, 3, ["dataset_1", "dataset_2"], [3, 5], max_chunksize=17)
         for i in range(3)
     ]
-    datasets = [BufferDataset(d, 73, pack_hard=True, bos_token=-1, max_buffer_len=200) for d in datasets]
+    datasets = [
+        BufferDataset(d, 73, pack_hard=True, bos_token=-1, max_buffer_len=200)
+        for d in datasets
+    ]
     datasets = [
         CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_test"), 100, 2)
         for x in datasets
@@ -920,7 +923,7 @@ def test_checkpoint_reload_match():
             next(loader)
 
     # Assert checkpoint exists and is properly formatted
-    time.sleep(1)
+    time.sleep(60)
     ckps = os.listdir(os.path.join(tmpdir.name, "ckp_test", "checkpoints"))
     assert len(ckps) == 1, f"Expected only one checkpoint (found {len(ckps)})"
     ckp_shards = os.listdir(
@@ -935,7 +938,10 @@ def test_checkpoint_reload_match():
         basic_sampler(i, 3, ["dataset_1", "dataset_2"], [3, 5], max_chunksize=17)
         for i in range(3)
     ]
-    datasets2 = [BufferDataset(d, 73, pack_hard=True, bos_token=-1, max_buffer_len=200) for d in datasets2]
+    datasets2 = [
+        BufferDataset(d, 73, pack_hard=True, bos_token=-1, max_buffer_len=200)
+        for d in datasets2
+    ]
     datasets2 = [
         CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_test"), 1000, 2)
         for x in datasets2
@@ -982,7 +988,6 @@ def test_multiprocess_epoch():
             # Add a dummy wrapper (append some pads) to test correct wrapper behavior
             d = [BufferDataset(x, 110, False, pad_token=-1) for x in d]
             single_epoch_loader_worker_check(d, n)
-
 
 
 def test_all():

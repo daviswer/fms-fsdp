@@ -536,24 +536,24 @@ class BufferDataset(_WrapperDataset):
         dataset = iter(self.dataset)
         while True:
             out, buffer = self._get_buffer(dataset, self.len, self.buffer)
-            self.buffer = buffer[:self.max_buffer_len]
+            self.buffer = buffer[: self.max_buffer_len]
             yield out
 
     def state_dict(self):
         # Pad out the buffer to constant size, log the real length
         # Constant size buffer is needed for distcp
         self.buffer_len = len(self.buffer)
-        pad_val = 0 if len(self.buffer)==0 else self.buffer[-1]
+        pad_val = 0 if len(self.buffer) == 0 else self.buffer[-1]
         self.buffer += [pad_val] * (self.max_buffer_len - self.buffer_len)
         out = super().state_dict()
         # Trim buffer back down to continue iterating
-        self.buffer = self.buffer[:self.buffer_len]
+        self.buffer = self.buffer[: self.buffer_len]
         return out
-    
+
     def load_state_dict(self, state_dict):
         # Unpad the buffer
         super().load_state_dict(state_dict)
-        self.buffer = self.buffer[:self.buffer_len]
+        self.buffer = self.buffer[: self.buffer_len]
 
 
 class StreamingDocDataset(_StatefulDataset):
@@ -1116,8 +1116,7 @@ class SamplingDataset(_WrapperDataset):
         self.tokens_seen = [0] * len(self.datasets)
 
         self.current_iterator = -1
-        self.iterator_states = None
-        self.state_params = ["tokens_seen", "current_iterator", "iterator_states"]
+        self.state_params = ["tokens_seen", "current_iterator"]
 
     def setup(self):
         if not self.is_setup:
@@ -1162,16 +1161,26 @@ class SamplingDataset(_WrapperDataset):
     def state_dict(self):
         self.setup()
         # Manually add state of all subloaders to self state
-        self.iterator_states = [d.state_dict() for d in self.data]
-        return _StatefulDataset.state_dict(self)
+        iterator_states = [d.state_dict() for d in self.data]
+        prefix = self.statename("iterator")
+        keys = iterator_states[0].keys()
+        out = {}
+        for i, d in enumerate(iterator_states):
+            for k in keys:
+                out[prefix + "." + str(i) + "." + k] = d[k]
+        out.update(_StatefulDataset.state_dict(self))
+        return out
 
     def load_state_dict(self, state_dict):
         self.setup()
         # Load stats
         _StatefulDataset.load_state_dict(self, state_dict)
         # Load sub-iterator states
+        prefix = self.statename("iterator")
         for i, subdata in enumerate(self.data):
-            subdata.load_state_dict(self.iterator_states[i])
+            p = prefix + "." + str(i) + "."
+            d = {k[len(p) :]: v for k, v in state_dict.items() if p in k}
+            subdata.load_state_dict(d)
         self.iterator_states = None
 
 
@@ -1320,4 +1329,3 @@ class CheckpointDataset(_WrapperDataset):
         state = torch.load(os.path.join(path, fileshards[self.rank]))
         self.dataset.load_state_dict(state)
         self.report(f"Dataset checkpoint loaded! Load time: {time.time() - start}")
-
