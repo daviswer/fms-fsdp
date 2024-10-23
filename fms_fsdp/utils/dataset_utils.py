@@ -1021,7 +1021,17 @@ class ScalableShardDataset(_WrapperDataset):
             for k in logical_shard_states[0].keys()
         }
         state_dict.update(_StatefulDataset.state_dict(self))
-        return state_dict
+
+        # Convert to tensor form
+        out = {}
+        for k, v in state_dict.items():
+            v = torch.tensor(v)
+            if len(v.shape) == 0:
+                k = k + ".scalar"
+                v = v.unsqueeze(0)
+            out[k] = v
+
+        return out
 
     def load_state_dict(self, state_dicts):
         """
@@ -1029,9 +1039,36 @@ class ScalableShardDataset(_WrapperDataset):
         If state_dicts is a list, expects the full set of state dicts
         """
         self.setup()
-        if isinstance(state_dicts, dict):
+        # Build checkpoint shard list
+        single_load = isinstance(state_dicts, dict)
+        if single_load:
+            state_dicts = [state_dicts]
+        else:
+            self.load_worldsize = len(state_dicts)
+            state_dicts = _shard_inclusive(state_dicts, self.rank, self.worldsize)
+
+        # Convert back to lists and scalars
+        def detorchify(k, v):
+            v = v.tolist()
+            if ".scalar" in k:
+                k = k[:-7]
+                v = v[0]
+            return k, v
+
+        plain_dicts = []
+        for d in state_dicts:
+            p = {}
+            for k, v in d.items():
+                k, v = detorchify(k, v)
+                p[k] = v
+            plain_dicts.append(p)
+        state_dicts = plain_dicts
+
+        # Assemble logical shard states
+        if single_load:
+            state_dicts = state_dicts[0]
             _StatefulDataset.load_state_dict(self, state_dicts)
-            # Remove all non-resharding state (this is destructive, in-place)
+            # Remove all non-resharding state
             [state_dicts.pop(self.statename(n)) for n in self.state_params]
             # Flip dict[list[any]] to list[dict[any]]
             logical_shard_states = [
@@ -1039,9 +1076,7 @@ class ScalableShardDataset(_WrapperDataset):
                 for i in range(self.n_logicals)
             ]
         else:
-            self.load_worldsize = len(state_dicts)
-            state_dicts = _shard_inclusive(state_dicts, self.rank, self.worldsize)
-            # Remove all non-resharding state (this is destructive, in-place)
+            # Remove all non-resharding state
             for d in state_dicts:
                 [d.pop(self.statename(n)) for n in self.state_params]
             # Calculate old n_logicals: len of first entry of first dict in state_dicts
@@ -1053,10 +1088,10 @@ class ScalableShardDataset(_WrapperDataset):
             ]
             # Perform resharding
             logical_shard_states = self._reshard(state_dicts)
-        # Recursive set
+
+        # Load values
         for i in range(self.n_logicals):
             self.data[i].load_state_dict(logical_shard_states[i])
-        self.logical_shard_states = None
 
 
 class SamplingDataset(_WrapperDataset):
