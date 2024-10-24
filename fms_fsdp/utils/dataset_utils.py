@@ -1285,7 +1285,6 @@ class CheckpointDataset(_WrapperDataset):
                 save_interval
             ), f"Steps per call {self.spc} must divide save interval {self.interval} evenly"
             self.save_interval = int(save_interval)
-            self.report(f"Saving checkpoint every {self.interval} steps ({self.save_interval} internally)")
             self.load_from_path(self.load_path)
 
     def __iter__(self):
