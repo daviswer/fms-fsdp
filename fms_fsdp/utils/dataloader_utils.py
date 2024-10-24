@@ -132,7 +132,7 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         data,
         cfg.ckpt_load_path if cfg.resuming_dataset else cfg.ckpt_save_path,
         cfg.checkpoint_interval,
-        cfg.batch_size * world_size / cfg.logical_shards,
+        cfg.logical_shards / cfg.batch_size / world_size,
         cfg.ckpt_save_path,
     )
 
