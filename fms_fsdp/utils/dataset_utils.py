@@ -1266,7 +1266,7 @@ class CheckpointDataset(_WrapperDataset):
         super().__init__(dataset)
         self.interval = interval
         self.spc = steps_per_call
-        self.save_interval = -1 
+        self.save_interval = -1
         load_path = os.path.join(load_path, "checkpoints")
         if len(save_path) == 0:
             save_path = load_path
@@ -1281,7 +1281,9 @@ class CheckpointDataset(_WrapperDataset):
             super().setup()
             # After possible world size adjustment, calculate save interval
             save_interval = self.interval / self.spc
-            assert save_interval == int(save_interval), f"Steps per call {self.spc} must divide save interval {self.interval} evenly"
+            assert save_interval == int(
+                save_interval
+            ), f"Steps per call {self.spc} must divide save interval {self.interval} evenly"
             self.save_interval = int(save_interval)
             self.load_from_path(self.load_path)
 
@@ -1292,7 +1294,9 @@ class CheckpointDataset(_WrapperDataset):
             yield next(dataset)
             self.step += 1
             if self.step % self.save_interval == 0:
-                newpath = os.path.join(self.path, "step_" + str(int(self.step * self.spc)) + "_ckp")
+                newpath = os.path.join(
+                    self.path, "step_" + str(int(self.step * self.spc)) + "_ckp"
+                )
                 self.save_to_path(newpath)
 
     def report(self, msg):
