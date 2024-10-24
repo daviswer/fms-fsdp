@@ -847,18 +847,18 @@ def test_checkpoint_rescale():
     """
     datasets = [basic_loader(i, 5) for i in range(5)]
     datasets = [
-        CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 2, 1)
+        CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 8, 4)
         for x in datasets
     ]
     datasets = [ScalableShardDataset(x, -1, 20) for x in datasets]
     loaders = [iter(x) for x in datasets]
 
     old_vals = []
-    for loader in loaders:
-        for _ in range(8):
+    for _ in range(8):
+        for loader in loaders:
             old_vals.append(next(loader)[0])
-    # Prefetch where ckp is actually saved
-    [next(l) for l in loaders for _ in range(4)]
+    # Prefetch where save actually occurs
+    [next(loader) for loader in loaders for _ in range(4)]
 
     # Assert checkpoint exists and is properly formatted
     ckps = os.listdir(os.path.join(tmpdir.name, "ckp_rescale_test", "checkpoints"))
@@ -874,7 +874,7 @@ def test_checkpoint_rescale():
         # Create a second loader, pointing to first's checkpoint
         datasets = [basic_loader(i, worldsize) for i in range(worldsize)]
         datasets = [
-            CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 100, 1)
+            CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 100)
             for x in datasets
         ]
         datasets = [ScalableShardDataset(x, -1, 20) for x in datasets]
@@ -908,7 +908,7 @@ def test_checkpoint_reload_match():
         for d in datasets
     ]
     datasets = [
-        CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_test"), 100, 2)
+        CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_test"), 90, .5)
         for x in datasets
     ]
     loaders = [
@@ -918,7 +918,7 @@ def test_checkpoint_reload_match():
         for x in datasets
     ]
     loaders = [iter(x) for x in loaders]
-    for _ in range(100):
+    for _ in range(90):
         for loader in loaders:
             next(loader)
 
@@ -943,14 +943,14 @@ def test_checkpoint_reload_match():
         for d in datasets2
     ]
     datasets2 = [
-        CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_test"), 1000, 2)
+        CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_test"), 3000, 6//3)
         for x in datasets2
     ]
     [d.setup() for d in datasets2]
 
     # Assert checkpoints have loaded correctly
     for d in datasets2:
-        assert d.step == 100, f"Expected to load back to step 100, got {d.step}"
+        assert d.step*d.spc == 90, f"Expected to load back to step 90, got {d.step*d.spc}"
 
     # Continue iterating, verify matching behavior
     loaders2 = [
@@ -961,7 +961,7 @@ def test_checkpoint_reload_match():
     ]
     loaders2 = [iter(x) for x in loaders2]
 
-    for j in range(300):
+    for j in range(250):
         for loader, loader2 in zip(loaders, loaders2):
             out = sum(next(loader2))
             targ = sum(next(loader))

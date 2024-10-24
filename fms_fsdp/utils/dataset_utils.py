@@ -1247,13 +1247,10 @@ class CheckpointDataset(_WrapperDataset):
     load_path : str
         Absolute path to checkpoint load directory. If a checkpoint exists, loads it.
     interval : int
-        Saves a new checkpoint every interval.
-    copies_per_device : int
-        Used to calculate the number of loader steps taken per global training step.
-        Must divide interval evenly.
-    steps_per_batch : optional[int]
-        Number of steps required to fill a single batch. Increments interval only
-        when a full batch is formed. Defaults to 1.
+        Saves a new checkpoint every interval training steps.
+    steps_per_call : optional[int]
+        The number of training steps required to call this loader once.
+        Used in cases of multiple logical shards per worker to track intervals.
     save_path : optional[str]
         Absolute path to checkpoint save directory. Defaults to load_path.
     """
@@ -1263,14 +1260,13 @@ class CheckpointDataset(_WrapperDataset):
         dataset: _StatefulDataset,
         load_path: str,
         interval: int,
-        copies_per_device: int,
-        steps_per_batch: int = 1,
+        steps_per_call: float = 1.0,
         save_path: str = "",
     ):
         super().__init__(dataset)
-        self.interval = interval // self.cpd
-        self.spb = steps_per_batch
-        self.cpd = copies_per_device
+        self.interval = interval
+        self.spc = steps_per_call
+        self.save_interval = -1 
         load_path = os.path.join(load_path, "checkpoints")
         if len(save_path) == 0:
             save_path = load_path
@@ -1279,11 +1275,14 @@ class CheckpointDataset(_WrapperDataset):
         self.load_path = load_path
         self.path = save_path
         self.step = 0
-        self.ministep = 0
 
     def setup(self):
         if not self.is_setup:
             super().setup()
+            # After possible world size adjustment, calculate save interval
+            save_interval = self.interval / self.spc
+            assert save_interval == int(save_interval), f"Steps per call {self.spc} must divide save interval {self.interval} evenly"
+            self.save_interval = int(save_interval)
             self.load_from_path(self.load_path)
 
     def __iter__(self):
@@ -1291,13 +1290,10 @@ class CheckpointDataset(_WrapperDataset):
         dataset = iter(self.dataset)
         while True:
             yield next(dataset)
-            self.ministep += 1
-            if self.ministep == self.spb:
-                self.ministep = 0
-                self.step += 1
-                if self.step % self.interval == 0:
-                    newpath = os.path.join(self.path, "step_" + str(self.step * self.cpd) + "_ckp")
-                    self.save_to_path(newpath)
+            self.step += 1
+            if self.step % self.save_interval == 0:
+                newpath = os.path.join(self.path, "step_" + str(int(self.step * self.spc)) + "_ckp")
+                self.save_to_path(newpath)
 
     def report(self, msg):
         if self.rank == 0:
@@ -1337,7 +1333,7 @@ class CheckpointDataset(_WrapperDataset):
                 )
             return ""
         # If item is a folder, get the step count
-        self.step = int(latest.split("_")[-2]) // self.cpd
+        self.step = int(int(latest.split("_")[-2]) / self.spc)
         return latest
 
     def save_to_path(self, path: str):
