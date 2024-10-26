@@ -37,25 +37,6 @@ from fms_fsdp.utils.train_utils import (
 )
 
 def run(cfg, local_rank, rank, world_size):
-    
-    # time.sleep(5+2*rank)
-    # dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60), rank=rank, world_size=world_size)
-    # dist.barrier()
-    # test = torch.ones(1, device=rank) * rank
-    # dist.all_reduce(test)
-    # time.sleep(5+2*rank)
-    # print(rank, "INIT 1", test.item())
-    # dist.barrier()
-    # dist.destroy_process_group()
-    
-    # time.sleep(5+2*rank)
-    # dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60), rank=rank, world_size=world_size)
-    # dist.barrier()
-    # test = torch.ones(1, device=rank) * rank
-    # dist.all_reduce(test)
-    # time.sleep(5+2*rank)
-    # print(rank, "INIT 2", test.item())
-    # dist.barrier()
 
     pg = dist.new_group(use_local_synchronization=True)
 
@@ -303,7 +284,7 @@ def main(**kwargs):
     simplex = torch.eye(n)
     simplex = torch.cat([torch.ones(n, 1).neg().mul(((1+n)**.5-1)/n), simplex], dim=1)
     simplex = simplex - simplex.mean(1, True)
-    candidates = simplex.t().neg().tolist()
+    candidates = simplex.t().tolist()
     simplex = []
     for candidate in candidates:
         simplex.append(candidate + [eval(candidate, candidate)])
