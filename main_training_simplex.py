@@ -281,10 +281,13 @@ def main(**kwargs):
     # Assemble initial simplex and evaluate
     report("ASSEMBLING INITIAL SIMPLEX")
     n = len(mup_params)
+    init_generator = torch.Generator()
+    init_generator.manual_seed(cfg.seed)
+    flips = torch.randn(len(mup_params), generator=init_generator).sign()
     simplex = torch.eye(n)
     simplex = torch.cat([torch.ones(n, 1).neg().mul(((1+n)**.5-1)/n), simplex], dim=1)
     simplex = simplex - simplex.mean(1, True)
-    candidates = simplex.t().tolist()
+    candidates = simplex.t().mul(flips).tolist()
     simplex = []
     for candidate in candidates:
         simplex.append(candidate + [eval(candidate, candidate)])
