@@ -95,6 +95,7 @@ def run(cfg, local_rank, rank, world_size):
 
     # torch compile
     if cfg.use_torch_compile:
+        torch._dynamo.reset()
         # the default accumulated_cache_size_limit=64 is not enough for 70b model, so we make it 128 here
         torch._dynamo.config.accumulated_cache_size_limit = 128
         model = torch.compile(model)
