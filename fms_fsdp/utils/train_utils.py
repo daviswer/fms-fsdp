@@ -238,7 +238,7 @@ def get_policies(cfg, rank, block):
 
     # param init function
     if cfg.low_cpu_fsdp:
-        param_init_fn = param_init_function
+        param_init_fn = partial(param_init_function, cfg=model_cfg)
     else:
         param_init_fn = None
 
