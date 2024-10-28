@@ -285,11 +285,12 @@ def main(**kwargs):
     # init_generator = torch.Generator()
     # init_generator.manual_seed(cfg.seed)
     # flips = torch.randn(len(mup_params), generator=init_generator).sign()
-    flips = torch.tensor([-1, 1, -1, 1, 1, -1])
+    # flips = torch.tensor([-1, 1, -1, 1, 1, -1])
     simplex = torch.eye(n)
     simplex = torch.cat([torch.ones(n, 1).neg().mul(((1+n)**.5-1)/n), simplex], dim=1)
     simplex = simplex - simplex.mean(1, True)
-    candidates = simplex.t().mul(flips).tolist()
+    # candidates = simplex.t().mul(flips).tolist()
+    candidates = simplex.t().tolist()
     simplex = []
     for candidate in candidates:
         simplex.append(candidate + [eval(candidate, candidate)])
