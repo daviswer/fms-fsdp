@@ -390,7 +390,7 @@ class ParquetHandler(_ShardFileHandler):
         return pq.read_pandas(path, columns=[]).num_rows
 
     def get(self, reader, index: int, drop_tokens: Set):
-        doc = self.tokenizer(str(reader[index]))["input_ids"]
+        doc = self.tokenizer(str(reader[index])[:128_000])["input_ids"]
         if len(doc) > 0:
             if doc[0] in drop_tokens:
                 doc = doc[1:]
