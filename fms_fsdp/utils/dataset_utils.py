@@ -384,7 +384,12 @@ class ParquetHandler(_ShardFileHandler):
         return "parquet" in os.path.splitext(filepath)[1]
 
     def open(self, path: str):
-        return pq.read_pandas(path, columns=[self.col_name])[self.col_name]
+        for col_name in ["text", "content", "contents"]:
+            try:
+                return pq.read_pandas(path, columns=[col_name])[col_name]
+            except:
+                pass
+        assert False, "Doc not found under headers [text, content, contents]"
 
     def length(self, path: str):
         return pq.read_pandas(path, columns=[]).num_rows
