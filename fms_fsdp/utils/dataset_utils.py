@@ -392,7 +392,12 @@ class ParquetHandler(_ShardFileHandler):
         assert False, "Doc not found under headers [text, content, contents]"
 
     def length(self, path: str):
-        return pq.read_pandas(path, columns=[]).num_rows
+        try:
+            num_rows = pq.read_pandas(path, columns=[]).num_rows
+        except:
+            print("path: ", path)
+            num_rows = 0
+        return num_rows
 
     def get(self, reader, index: int, drop_tokens: Set):
         doc = self.tokenizer(str(reader[index])[:128_000])["input_ids"]
