@@ -386,18 +386,13 @@ class ParquetHandler(_ShardFileHandler):
     def open(self, path: str):
         for col_name in ["text", "content", "contents"]:
             try:
-                return pq.read_pandas(path, columns=[col_name])[col_name]
+                return pq.read_pandas(path, columns=[col_name], partitioning=None)[col_name]
             except:
                 pass
         assert False, "Doc not found under headers [text, content, contents]"
 
     def length(self, path: str):
-        try:
-            num_rows = pq.read_pandas(path, columns=[]).num_rows
-        except:
-            print("path: ", path)
-            num_rows = 0
-        return num_rows
+        return pq.read_pandas(path, columns=[], partitioning=None).num_rows
 
     def get(self, reader, index: int, drop_tokens: Set):
         doc = self.tokenizer(str(reader[index])[:128_000])["input_ids"]
