@@ -36,10 +36,10 @@ from fms_fsdp.utils.train_utils import (
     train,
 )
 
-def run(cfg, local_rank, rank, world_size):
 
+def run(cfg, local_rank, rank, world_size):
     pg = dist.new_group(use_local_synchronization=True)
-    
+
     # ensure reproducibility
     torch.cuda.manual_seed(cfg.seed)
     torch.manual_seed(cfg.seed)
@@ -120,22 +120,20 @@ def run(cfg, local_rank, rank, world_size):
             ] + [m_.weight for m_ in m.in_proj.modules() if isinstance(m_, nn.Linear)]
         elif isinstance(m, GatedLinearUnit):
             params_2d += [m_.weight for m_ in m.modules() if isinstance(m_, nn.Linear)]
-    assert len(params_0d) + len(params_1d) + len(params_2d) == len(list(model.parameters()))
+    assert len(params_0d) + len(params_1d) + len(params_2d) == len(
+        list(model.parameters())
+    )
     optimizer = optim.AdamW(
         [
-            {
-                "params": params_0d, 
-                "lr": cfg.learning_rate
-                / llama_config.mup_lr_dscale},
+            {"params": params_0d, "lr": cfg.learning_rate / llama_config.mup_lr_dscale},
             {
                 "params": params_1d,
-                "lr": cfg.learning_rate
-                / llama_config.emb_dim**0.5,
+                "lr": cfg.learning_rate / llama_config.emb_dim**0.5,
             },
             {
                 "params": params_2d,
                 "lr": cfg.learning_rate
-                * llama_config.mup_lr_dscale 
+                * llama_config.mup_lr_dscale
                 / llama_config.emb_dim,
             },
         ],
@@ -236,7 +234,9 @@ def main(**kwargs):
 
     # Build mup grid
 
-    explore_ratio = cfg.mup_explore_range  # explore range of values equal to current value * 2^(+/-4)
+    explore_ratio = (
+        cfg.mup_explore_range
+    )  # explore range of values equal to current value * 2^(+/-4)
     mup_params = [
         "mup_emb_scale",
         "mup_head_scale",
@@ -245,49 +245,58 @@ def main(**kwargs):
         "mup_lr_dscale",
         "learning_rate",
     ]
-    mup_scale_vals = [0.5,0,0,0,-0.5,0.5]
+    mup_scale_vals = [0.5, 0, 0, 0, -0.5, 0.5]
 
     def report(*args):
-        if rank==0:
+        if rank == 0:
             print()
             print(*args)
 
     def mup_format(x):
         if isinstance(x, str) and len(x) > 3:
-            return x + " "*max(0, 15-len(x))
+            return x + " " * max(0, 15 - len(x))
         elif isinstance(x, float):
             return "{:.3f}".format(x)
         else:
             return str(x)
 
-    def report_mups(prefix,vals):
+    def report_mups(prefix, vals):
         # vals is a rectangular list of lists
-        report(prefix, *['\t'.join([mup_format(x) for x in group]) for group in zip(['\n']*len(vals[0]),*vals)])
+        report(
+            prefix,
+            *[
+                "\t".join([mup_format(x) for x in group])
+                for group in zip(["\n"] * len(vals[0]), *vals)
+            ],
+        )
 
     def set_mups(mup_k, mup_v, old_mup_v, cfg):
         new_cfg = deepcopy(cfg)
-        report_mups("  Starting run:", [mup_k, old_mup_v, ["->"]*len(mup_v), mup_v])
-        for k,v in zip(mup_k, mup_v):
-            setattr(new_cfg, k, getattr(cfg, k) * 2**(v*explore_ratio))
+        report_mups("  Starting run:", [mup_k, old_mup_v, ["->"] * len(mup_v), mup_v])
+        for k, v in zip(mup_k, mup_v):
+            setattr(new_cfg, k, getattr(cfg, k) * 2 ** (v * explore_ratio))
         return new_cfg
-    
+
     def eval(candidate, old_candidate):
-        out = run(set_mups(mup_params, candidate, old_candidate, cfg), local_rank, rank, world_size)
+        out = run(
+            set_mups(mup_params, candidate, old_candidate, cfg),
+            local_rank,
+            rank,
+            world_size,
+        )
         report("  Final loss:", out)
         torch.cuda.empty_cache()
         return out
-    
-    for i,m in enumerate(mup_params):
+
+    for i, m in enumerate(mup_params):
         report("EVALUATING", m)
-        for offset in [-1,-.5,0,.5,1]:
+        for offset in [-1, -0.5, 0, 0.5, 1]:
             candidate = deepcopy(mup_scale_vals)
             candidate[i] += offset
             eval(candidate, mup_scale_vals)
 
     dist.barrier()
     dist.destroy_process_group()
-
-
 
 
 if __name__ == "__main__":

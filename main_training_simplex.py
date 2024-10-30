@@ -36,11 +36,10 @@ from fms_fsdp.utils.train_utils import (
     train,
 )
 
-def run(cfg, local_rank, rank, world_size):
 
+def run(cfg, local_rank, rank, world_size):
     pg = dist.new_group(use_local_synchronization=True)
 
-    
     # ensure reproducibility
     torch.cuda.manual_seed(cfg.seed)
     torch.manual_seed(cfg.seed)
@@ -122,22 +121,20 @@ def run(cfg, local_rank, rank, world_size):
             ] + [m_.weight for m_ in m.in_proj.modules() if isinstance(m_, nn.Linear)]
         elif isinstance(m, GatedLinearUnit):
             params_2d += [m_.weight for m_ in m.modules() if isinstance(m_, nn.Linear)]
-    assert len(params_0d) + len(params_1d) + len(params_2d) == len(list(model.parameters()))
+    assert len(params_0d) + len(params_1d) + len(params_2d) == len(
+        list(model.parameters())
+    )
     optimizer = optim.AdamW(
         [
-            {
-                "params": params_0d, 
-                "lr": cfg.learning_rate
-                / llama_config.mup_lr_dscale},
+            {"params": params_0d, "lr": cfg.learning_rate / llama_config.mup_lr_dscale},
             {
                 "params": params_1d,
-                "lr": cfg.learning_rate
-                / llama_config.emb_dim**0.5,
+                "lr": cfg.learning_rate / llama_config.emb_dim**0.5,
             },
             {
                 "params": params_2d,
                 "lr": cfg.learning_rate
-                * llama_config.mup_lr_dscale 
+                * llama_config.mup_lr_dscale
                 / llama_config.emb_dim,
             },
         ],
@@ -215,7 +212,6 @@ def run(cfg, local_rank, rank, world_size):
 
 
 def main(**kwargs):
-
     # torchrun specific
     local_rank = int(os.environ["LOCAL_RANK"])
     rank = int(os.environ["RANK"])
@@ -239,7 +235,9 @@ def main(**kwargs):
 
     # Build mup grid
 
-    explore_ratio = cfg.mup_explore_range  # explore range of values equal to current value * 2^(+/-4)
+    explore_ratio = (
+        cfg.mup_explore_range
+    )  # explore range of values equal to current value * 2^(+/-4)
     mup_params = [
         "mup_emb_scale",
         "mup_head_scale",
@@ -250,35 +248,46 @@ def main(**kwargs):
     ]
 
     def report(*args):
-        if rank==0:
+        if rank == 0:
             print()
             print(*args)
 
     def mup_format(x):
         if isinstance(x, str) and len(x) > 3:
-            return x + " "*max(0, 15-len(x))
+            return x + " " * max(0, 15 - len(x))
         elif isinstance(x, float):
             return "{:.3f}".format(x)
         else:
             return str(x)
 
-    def report_mups(prefix,vals):
+    def report_mups(prefix, vals):
         # vals is a rectangular list of lists
-        report(prefix, *['\t'.join([mup_format(x) for x in group]) for group in zip(['\n']*len(vals[0]),*vals)])
+        report(
+            prefix,
+            *[
+                "\t".join([mup_format(x) for x in group])
+                for group in zip(["\n"] * len(vals[0]), *vals)
+            ],
+        )
 
     def set_mups(mup_k, mup_v, old_mup_v, cfg):
         new_cfg = deepcopy(cfg)
-        report_mups("  Starting run:", [mup_k, old_mup_v, ["->"]*len(mup_v), mup_v])
-        for k,v in zip(mup_k, mup_v):
-            setattr(new_cfg, k, getattr(cfg, k) * 2**(v*explore_ratio))
+        report_mups("  Starting run:", [mup_k, old_mup_v, ["->"] * len(mup_v), mup_v])
+        for k, v in zip(mup_k, mup_v):
+            setattr(new_cfg, k, getattr(cfg, k) * 2 ** (v * explore_ratio))
         return new_cfg
-    
+
     def eval(candidate, old_candidate):
-        out = run(set_mups(mup_params, candidate, old_candidate, cfg), local_rank, rank, world_size)
+        out = run(
+            set_mups(mup_params, candidate, old_candidate, cfg),
+            local_rank,
+            rank,
+            world_size,
+        )
         report("  Final loss:", out)
         torch.cuda.empty_cache()
         return out
-    
+
     # Assemble initial simplex and evaluate
     report("ASSEMBLING INITIAL SIMPLEX")
     n = len(mup_params)
@@ -287,7 +296,9 @@ def main(**kwargs):
     # flips = torch.randn(len(mup_params), generator=init_generator).sign()
     # flips = torch.tensor([-1, 1, -1, 1, 1, -1])
     simplex = torch.eye(n)
-    simplex = torch.cat([torch.ones(n, 1).neg().mul(((1+n)**.5-1)/n), simplex], dim=1)
+    simplex = torch.cat(
+        [torch.ones(n, 1).neg().mul(((1 + n) ** 0.5 - 1) / n), simplex], dim=1
+    )
     simplex = simplex - simplex.mean(1, True)
     # candidates = simplex.t().mul(flips).tolist()
     candidates = simplex.t().tolist()
@@ -298,7 +309,7 @@ def main(**kwargs):
     report_mups("SIMPLEX COMPLETE:", [mup_params + ["loss"]] + simplex)
 
     for i in range(cfg.mup_search_steps):
-        centroid = torch.tensor(simplex)[:-1,:-1].mean(0)
+        centroid = torch.tensor(simplex)[:-1, :-1].mean(0)
         delta = centroid - torch.tensor(simplex[-1][:-1])
         candidate = centroid + delta
         score = eval(candidate.tolist(), simplex[-1][:-1])
@@ -310,7 +321,7 @@ def main(**kwargs):
         elif score < scores[0]:
             # Expansion
             report("  Reflection is great. Evaluating extension.")
-            candidate_e = centroid + (1 + 2/len(mup_params)) * delta
+            candidate_e = centroid + (1 + 2 / len(mup_params)) * delta
             score_e = eval(candidate_e.tolist(), candidate.tolist())
             if score_e < score:
                 report("  Extension is also great. Adding to simplex.")
@@ -321,30 +332,35 @@ def main(**kwargs):
             if score < scores[-1]:
                 # Outside contraction
                 report("  Reflection is better. Evaluating contraction.")
-                candidate_c = centroid + (.75 - 1/2/len(mup_params)) * delta
+                candidate_c = centroid + (0.75 - 1 / 2 / len(mup_params)) * delta
                 candidate = candidate.tolist()
                 thresh = score
             else:
                 # Inside contraction
                 report("  Reflection is bad. Evaluating contraction.")
-                candidate_c = centroid - (.75 - 1/2/len(mup_params)) * delta
+                candidate_c = centroid - (0.75 - 1 / 2 / len(mup_params)) * delta
                 candidate = simplex[-1][:-1]
-                thresh = scores[-1] 
+                thresh = scores[-1]
             score_c = eval(candidate_c.tolist(), candidate)
             if score_c < thresh:
                 report("  Contraction is good. Adding to simplex.")
                 simplex[-1] = candidate_c.tolist() + [score_c]
             else:
                 # Global contraction
-                report("  Nonconvexity discovered! Global contraction required \[]-_-]/")
+                report(
+                    "  Nonconvexity discovered! Global contraction required \[]-_-]/"
+                )
                 new_simplex = []
                 new_simplex.append(simplex[0])
                 n = len(mup_params)
                 for candidate in simplex[1:]:
-                    new_candidate = [(x+(n-1)*c)/n for x,c in zip(simplex[0][:-1], candidate[:-1])]
+                    new_candidate = [
+                        (x + (n - 1) * c) / n
+                        for x, c in zip(simplex[0][:-1], candidate[:-1])
+                    ]
                     new_simplex.append(new_candidate + [eval(new_candidate, candidate)])
                 simplex = new_simplex
-        
+
         simplex.sort(key=lambda x: x[-1])
         report_mups(f"STEP {i} COMPLETE:", [mup_params + ["loss"]] + simplex)
 
@@ -353,16 +369,16 @@ def main(**kwargs):
     # Final results
     report_mups("SEARCH COMPLETE. BEST SCALE VALUES ARE:", [mup_params, mup_scale_vals])
 
-
     llama_config = get_model_config(cfg.model_variant)
     llama_config = set_mup_from_cfg(cfg, llama_config)
-    final = [getattr(cfg, mup_params[i]) * 2**(explore_ratio*mup_scale_vals[i]) for i in range(len(mup_params))]
+    final = [
+        getattr(cfg, mup_params[i]) * 2 ** (explore_ratio * mup_scale_vals[i])
+        for i in range(len(mup_params))
+    ]
     report_mups("CORRESPONDING FINAL VALUES ARE:", [mup_params, final])
 
     dist.barrier()
     dist.destroy_process_group()
-
-
 
 
 if __name__ == "__main__":

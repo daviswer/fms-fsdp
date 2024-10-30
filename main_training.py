@@ -31,6 +31,7 @@ from fms_fsdp.utils.train_utils import (
     train,
 )
 
+
 def run(cfg, local_rank, rank, world_size):
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
@@ -107,22 +108,20 @@ def run(cfg, local_rank, rank, world_size):
             ] + [m_.weight for m_ in m.in_proj.modules() if isinstance(m_, nn.Linear)]
         elif isinstance(m, GatedLinearUnit):
             params_2d += [m_.weight for m_ in m.modules() if isinstance(m_, nn.Linear)]
-    assert len(params_0d) + len(params_1d) + len(params_2d) == len(list(model.parameters()))
+    assert len(params_0d) + len(params_1d) + len(params_2d) == len(
+        list(model.parameters())
+    )
     optimizer = optim.AdamW(
         [
-            {
-                "params": params_0d, 
-                "lr": cfg.learning_rate
-                / llama_config.mup_lr_dscale},
+            {"params": params_0d, "lr": cfg.learning_rate / llama_config.mup_lr_dscale},
             {
                 "params": params_1d,
-                "lr": cfg.learning_rate
-                / llama_config.emb_dim**0.5,
+                "lr": cfg.learning_rate / llama_config.emb_dim**0.5,
             },
             {
                 "params": params_2d,
                 "lr": cfg.learning_rate
-                * llama_config.mup_lr_dscale 
+                * llama_config.mup_lr_dscale
                 / llama_config.emb_dim,
             },
         ],
@@ -186,7 +185,6 @@ def run(cfg, local_rank, rank, world_size):
     ).item()
 
 
-
 def main(**kwargs):
     # get configs
     cfg = config.train_config()
@@ -212,7 +210,9 @@ def main(**kwargs):
 
     # Build mup grid
 
-    explore_ratio = cfg.mup_explore_range  # explore range of values equal to current value * 2^(+/-4)
+    explore_ratio = (
+        cfg.mup_explore_range
+    )  # explore range of values equal to current value * 2^(+/-4)
     mup_params = [
         "mup_emb_scale",
         "mup_head_scale",
@@ -224,18 +224,24 @@ def main(**kwargs):
     mup_scale_vals = [0 for _ in mup_params]
 
     def report(*args):
-        if rank==0:
+        if rank == 0:
             print()
             print(*args)
 
-    def report_mups(prefix,k,v):
-        report(prefix, *['\t'.join([str(x),str(y),str(z)]) for x,y,z in zip(['\n']*len(k),k,v)])
+    def report_mups(prefix, k, v):
+        report(
+            prefix,
+            *[
+                "\t".join([str(x), str(y), str(z)])
+                for x, y, z in zip(["\n"] * len(k), k, v)
+            ],
+        )
 
     def set_mups(mup_k, mup_v, cfg):
         new_cfg = deepcopy(cfg)
         report_mups("  Starting run:", mup_k, mup_v)
-        for k,v in zip(mup_k, mup_v):
-            setattr(new_cfg, k, getattr(cfg, k) * 2**(v*explore_ratio))
+        for k, v in zip(mup_k, mup_v):
+            setattr(new_cfg, k, getattr(cfg, k) * 2 ** (v * explore_ratio))
         return new_cfg
 
     # Get baseline
@@ -248,9 +254,9 @@ def main(**kwargs):
         for j in range(len(mup_params)):
             report("STEP", i, "ADVANCING", mup_params[j])
             start_val = mup_scale_vals[j]
-            for sign in [1,-1]:
+            for sign in [1, -1]:
                 candidate = deepcopy(mup_scale_vals)
-                candidate[j] = start_val + sign * 2**(-i-1)
+                candidate[j] = start_val + sign * 2 ** (-i - 1)
                 new_cfg = set_mups(mup_params, candidate, cfg)
                 torch._dynamo.reset()
                 torch.cuda.empty_cache()
@@ -259,15 +265,21 @@ def main(**kwargs):
                 if new_loss < best_loss:
                     report("NEW RECORD")
                     mup_scale_vals = candidate
-        
-        report_mups("ROUND " + str(i) + " COMPLETE. CURRENT VALUES ARE:", mup_params, mup_scale_vals)
-    
+
+        report_mups(
+            "ROUND " + str(i) + " COMPLETE. CURRENT VALUES ARE:",
+            mup_params,
+            mup_scale_vals,
+        )
+
     # Final results
     report_mups("SEARCH COMPLETE. BEST SCALE VALUES ARE:", mup_params, mup_scale_vals)
 
-    final = [getattr(cfg, mup_params[i]) * 2**(explore_ratio*mup_scale_vals[i]) for i in range(len(mup_params))]
+    final = [
+        getattr(cfg, mup_params[i]) * 2 ** (explore_ratio * mup_scale_vals[i])
+        for i in range(len(mup_params))
+    ]
     report_mups("CORRESPONDING FINAL VALUES ARE:", mup_params, final)
-
 
     dist.barrier()
     dist.destroy_process_group()

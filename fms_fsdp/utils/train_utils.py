@@ -33,7 +33,7 @@ def train(
     model.train()
     ddp_stats = torch.zeros(3).to(local_rank)
 
-    if rank==0:
+    if rank == 0:
         print("    Training begins!")
 
     start = time.time()
@@ -97,8 +97,8 @@ def train(
                 break
             if batch_idx > 999 and train_loss > 6:
                 break
-            
-    if rank==0:
+
+    if rank == 0:
         print("    step:", min(batch_idx, cfg.num_steps))
         print("    loss:", current_loss)
         # print("    LR:", current_lr)
