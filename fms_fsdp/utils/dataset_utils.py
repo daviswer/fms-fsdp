@@ -384,17 +384,17 @@ class ParquetHandler(_ShardFileHandler):
         return "parquet" in os.path.splitext(filepath)[1]
 
     def open(self, path: str):
-        for col_name in ["text", "content", "contents"]:
-            try:
-                return pq.read_pandas(path, columns=[col_name], partitioning=None)[
-                    col_name
-                ]
-            except:
-                pass
-        assert False, "Doc not found under headers [text, content, contents]"
+        colnames = pq.read_metadata(path).schema.names
+        legal_fields = ["text", "content", "contents"]
+        overlap = set(legal_fields).intersection(set(colnames))
+        assert (
+            len(overlap) == 1
+        ), f"{len(overlap)} shared column names detected, need 1 ({overlap})"
+        name = overlap.pop()
+        return pq.read_pandas(path, columns=[name], partitioning=None)[name]
 
     def length(self, path: str):
-        return pq.read_pandas(path, columns=[], partitioning=None).num_rows
+        return pq.read_metadata(path).num_rows
 
     def get(self, reader, index: int, drop_tokens: Set):
         doc = self.tokenizer(str(reader[index])[:128_000])["input_ids"]
@@ -879,14 +879,6 @@ class StreamingDocDataset(_StatefulDataset):
                 if self.filehandler.is_legal(os.path.join(root, name))
             ]
             shards.sort()  # Ensure consistent sharding across machines
-            # start_frag = (self.rank * self.worldsize * len(shards)) // self.worldsize
-            # end_frag = (
-            #     (self.rank + 1) * self.worldsize * len(shards)
-            # ) // self.worldsize
-            # shardfrags = [
-            #     (shards[i // self.worldsize], i % self.worldsize)
-            #     for i in range(start_frag, end_frag)
-            # ]
 
             # Use shard file sizes to perform partitioning
             # Create shardlist of form shardid -> [start%, end%]
