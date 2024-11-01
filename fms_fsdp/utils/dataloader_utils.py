@@ -128,17 +128,17 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
 
     # Apply desired postprocessing steps in sequence
     data = PreprocessDataset(data, torch.IntTensor)
-    for p in postprocess:
-        data = PreprocessDataset(data, p)
+    # for p in postprocess:
+    #     data = PreprocessDataset(data, p)
 
-    # Enable auto-saving
-    data = CheckpointDataset(
-        data,
-        cfg.ckpt_load_path if cfg.resuming_dataset else cfg.ckpt_save_path,
-        cfg.checkpoint_interval,
-        cfg.batch_size,
-        cfg.ckpt_save_path,
-    )
+    # # Enable auto-saving
+    # data = CheckpointDataset(
+    #     data,
+    #     cfg.ckpt_load_path if cfg.resuming_dataset else cfg.ckpt_save_path,
+    #     cfg.checkpoint_interval,
+    #     cfg.batch_size,
+    #     cfg.ckpt_save_path,
+    # )
     return torch.utils.data.DataLoader(
         data, num_workers=cfg.num_workers, batch_size=cfg.batch_size
     )

@@ -57,16 +57,16 @@ def main(**kwargs):
 
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
-    if cfg.low_cpu_fsdp:
-        with torch.device("meta"):
-            model = LLaMA(llama_config)
-    else:
-        model = LLaMA(llama_config)
-        model.reset_parameters()
+    # if cfg.low_cpu_fsdp:
+    #     with torch.device("meta"):
+    #         model = LLaMA(llama_config)
+    # else:
+    #     model = LLaMA(llama_config)
+    #     model.reset_parameters()
 
-    if rank == 0:
-        total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print(f"\n--> model has {total_params / 1e6} Million params\n")
+    # if rank == 0:
+    #     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    #     print(f"\n--> model has {total_params / 1e6} Million params\n")
 
     # get data loader
     if rank == 0:
@@ -78,96 +78,115 @@ def main(**kwargs):
     if rank == 0:
         print("Datasets constructed!")
 
-    # FSDP
-    model = FSDP(
-        model,
-        auto_wrap_policy=wrapping_policy,
-        mixed_precision=mixed_precision_policy,
-        sharding_strategy=sharding_strategy_policy,
-        use_orig_params=cfg.use_torch_compile,
-        device_id=torch.cuda.current_device(),
-        limit_all_gathers=True,
-        param_init_fn=param_init_fn,
-    )
-    # we need this post-fsdp call to avoid graph break with torch.compile, until we figure out a better solution.
-    model.rot_emb.compute_freqs_cis(
-        torch.device("cuda", torch.cuda.current_device()),
-        model.config.max_expected_seq_len,
-    )
+    # # FSDP
+    # model = FSDP(
+    #     model,
+    #     auto_wrap_policy=wrapping_policy,
+    #     mixed_precision=mixed_precision_policy,
+    #     sharding_strategy=sharding_strategy_policy,
+    #     use_orig_params=cfg.use_torch_compile,
+    #     device_id=torch.cuda.current_device(),
+    #     limit_all_gathers=True,
+    #     param_init_fn=param_init_fn,
+    # )
+    # # we need this post-fsdp call to avoid graph break with torch.compile, until we figure out a better solution.
+    # model.rot_emb.compute_freqs_cis(
+    #     torch.device("cuda", torch.cuda.current_device()),
+    #     model.config.max_expected_seq_len,
+    # )
 
-    # fsdp activation checkpointing
-    if cfg.fsdp_activation_checkpointing:
-        if rank == 0:
-            print(f"--> applying FSDP activation checkpointing...")
-        apply_selective_ac(model, p=cfg.selective_checkpointing)
+    # # fsdp activation checkpointing
+    # if cfg.fsdp_activation_checkpointing:
+    #     if rank == 0:
+    #         print(f"--> applying FSDP activation checkpointing...")
+    #     apply_selective_ac(model, p=cfg.selective_checkpointing)
 
-    # torch compile
-    if cfg.use_torch_compile:
-        if rank == 0:
-            print(f"--> enabling torch compile...")
-        # the default accumulated_cache_size_limit=64 is not enough for 70b model, so we make it 128 here
-        torch._dynamo.config.accumulated_cache_size_limit = 128
-        model = torch.compile(model)
+    # # torch compile
+    # if cfg.use_torch_compile:
+    #     if rank == 0:
+    #         print(f"--> enabling torch compile...")
+    #     # the default accumulated_cache_size_limit=64 is not enough for 70b model, so we make it 128 here
+    #     torch._dynamo.config.accumulated_cache_size_limit = 128
+    #     model = torch.compile(model)
 
-    # Optimizer
-    optimizer = optim.AdamW(
-        model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
-    )
+    # # Optimizer
+    # optimizer = optim.AdamW(
+    #     model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
+    # )
 
-    # optionally load from checkpoint (when continue pretraining)
-    checkpointer = Checkpointer(
-        cfg.ckpt_save_path, 1000, cfg.sharding_strategy, rank, local_rank
-    )
-    model, optimizer, _, start_step, tokens_seen, is_resuming = checkpointer.load(
-        model,
-        optimizer,
-        None,
-        path=os.path.join(cfg.ckpt_load_path, "checkpoints/")
-        if not os.path.isfile(cfg.ckpt_load_path)
-        else cfg.ckpt_load_path,
-        strict=False,
-    )
-    if not is_resuming:
-        start_step = 0
-        # Override loaded optim hyperparams with the current values
-        for g in optimizer.param_groups:
-            g["initial_lr"] = cfg.learning_rate
+    # # optionally load from checkpoint (when continue pretraining)
+    # checkpointer = Checkpointer(
+    #     cfg.ckpt_save_path, 1000, cfg.sharding_strategy, rank, local_rank
+    # )
+    # model, optimizer, _, start_step, tokens_seen, is_resuming = checkpointer.load(
+    #     model,
+    #     optimizer,
+    #     None,
+    #     path=os.path.join(cfg.ckpt_load_path, "checkpoints/")
+    #     if not os.path.isfile(cfg.ckpt_load_path)
+    #     else cfg.ckpt_load_path,
+    #     strict=False,
+    # )
+    # if not is_resuming:
+    #     start_step = 0
+    #     # Override loaded optim hyperparams with the current values
+    #     for g in optimizer.param_groups:
+    #         g["initial_lr"] = cfg.learning_rate
 
-    # LR schedule
-    if cfg.training_stage == "annealing":
-        schedule = lambda x: 1 - x / cfg.num_steps
-    else:
-        warmup_interval = min(2000, cfg.num_steps // 20)
-        schedule = lambda x: min(
-            1 - (1 - min(x, warmup_interval) / warmup_interval) ** 2,
-            0.1
-            + 0.5
-            * (1 - 0.1)
-            * (1 + math.cos(min(x, cfg.num_steps) / cfg.num_steps * math.pi)),
-        )
-    scheduler = LambdaLR(optimizer, lambda x: schedule(x + start_step))
+    # # LR schedule
+    # if cfg.training_stage == "annealing":
+    #     schedule = lambda x: 1 - x / cfg.num_steps
+    # else:
+    #     warmup_interval = min(2000, cfg.num_steps // 20)
+    #     schedule = lambda x: min(
+    #         1 - (1 - min(x, warmup_interval) / warmup_interval) ** 2,
+    #         0.1
+    #         + 0.5
+    #         * (1 - 0.1)
+    #         * (1 + math.cos(min(x, cfg.num_steps) / cfg.num_steps * math.pi)),
+    #     )
+    # scheduler = LambdaLR(optimizer, lambda x: schedule(x + start_step))
 
-    # profiler
-    profiler = get_profiler(cfg, rank)
+    # # profiler
+    # profiler = get_profiler(cfg, rank)
 
-    # Train
-    if rank == 0:
-        print(f"Training for {cfg.num_steps} steps")
-    train(
-        cfg,
-        model,
-        local_rank,
-        rank,
-        train_loader,
-        optimizer,
-        scheduler,
-        profiler,
-        checkpointer,
-        start_step,
-        tokens_seen,
-    )
+    # # Train
+    # if rank == 0:
+    #     print(f"Training for {cfg.num_steps} steps")
+    # train(
+    #     cfg,
+    #     model,
+    #     local_rank,
+    #     rank,
+    #     train_loader,
+    #     optimizer,
+    #     scheduler,
+    #     profiler,
+    #     checkpointer,
+    #     start_step,
+    #     tokens_seen,
+    # )
 
-    checkpointer.save_single_file(cfg.num_steps, model)
+    # checkpointer.save_single_file(cfg.num_steps, model)
+
+    counts = {}
+    paircounts = {}
+    for batch_idx, input in enumerate(train_loader, start=1):
+        if batch_idx == 1 and rank==0:
+            print(input.shape)
+        if batch_idx > cfg.num_steps:
+            break
+        input = input.tolist()
+        for line in input:
+            for t in line:
+                counts[t] = counts.get(t, 0) + 1
+            for j in range(len(line)-1):
+                a = line[j]
+                b = line[j+1]
+                paircounts[(a,b)] = paircounts.get((a,b), 0) + 1
+        if batch_idx % cfg.report_interval == 0:
+            if rank==0:
+                print(batch_idx, len(paircounts))
 
     dist.barrier()
     dist.destroy_process_group()
