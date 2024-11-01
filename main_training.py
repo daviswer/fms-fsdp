@@ -1,5 +1,6 @@
 import math
 import os
+import time
 
 import fire
 import torch
@@ -171,6 +172,7 @@ def main(**kwargs):
 
     counts = {}
     paircounts = {}
+    start = time.time()
     for batch_idx, input in enumerate(train_loader, start=1):
         if batch_idx == 1 and rank==0:
             print(input.shape)
@@ -180,14 +182,14 @@ def main(**kwargs):
         for line in input:
             for t in line:
                 counts[t] = counts.get(t, 0) + 1
-            for j in range(len(line)-1):
-                a = line[j]
-                b = line[j+1]
-                paircounts[(a,b)] = paircounts.get((a,b), 0) + 1
+            for pair in zip(line, line[1:]):
+                paircounts[pair] = paircounts.get(pair, 0) + 1
         if batch_idx % cfg.report_interval == 0:
             if rank==0:
-                print(batch_idx, len(paircounts))
+                print(batch_idx, len(paircounts), time.time()-start)
+                start = time.time()
 
+    torch.save([counts, paircounts], "/gpfs/daviswer/results/bigrams/counts_"+str(rank)+".pth")
     dist.barrier()
     dist.destroy_process_group()
 
