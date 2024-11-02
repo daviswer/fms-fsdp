@@ -441,7 +441,6 @@ def basic_scalable(
     assert len(datasets) == 1, "Basic loader takes only 1 dataset"
     return ScalableShardDataset(
         basic_loader(rank, worldsize, datasets, max_chunksize, bos_token),
-        -1,
         n_logical_shards,
     )
 
@@ -456,7 +455,6 @@ def basic_sampler_scalable(
 ):
     return ScalableShardDataset(
         basic_sampler(rank, worldsize, datasets, weights, max_chunksize),
-        -1,
         n_logical_shards,
     )
 
@@ -594,7 +592,7 @@ def test_multi_reload_stress():
     multi_reload_stress_check(d1)
 
     # Scalable shard dataset
-    d2 = lambda x: [ScalableShardDataset(d, -1, n_logical_shards=15) for d in x]
+    d2 = lambda x: [ScalableShardDataset(d, n_logical_shards=15) for d in x]
     multi_reload_stress_check(lambda: d2(d1()))
 
     # Sampling dataset
@@ -850,7 +848,7 @@ def test_checkpoint_rescale():
         CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 8, 4)
         for x in datasets
     ]
-    datasets = [ScalableShardDataset(x, -1, 20) for x in datasets]
+    datasets = [ScalableShardDataset(x, 20) for x in datasets]
     loaders = [iter(x) for x in datasets]
 
     old_vals = []
@@ -877,7 +875,7 @@ def test_checkpoint_rescale():
             CheckpointDataset(x, os.path.join(tmpdir.name, "ckp_rescale_test"), 100)
             for x in datasets
         ]
-        datasets = [ScalableShardDataset(x, -1, 20) for x in datasets]
+        datasets = [ScalableShardDataset(x, 20) for x in datasets]
         [d.setup() for d in datasets]
         loaders = [iter(d) for d in datasets]
         new_vals = []
