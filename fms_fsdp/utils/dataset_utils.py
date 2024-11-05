@@ -445,7 +445,7 @@ class BigramDataset(_WrapperDataset):
 
     def __iter__(self):
         self.setup()
-        dataset = iter(dataset)
+        dataset = iter(self.dataset)
         while True:
             test = next(dataset)
             i = 0
