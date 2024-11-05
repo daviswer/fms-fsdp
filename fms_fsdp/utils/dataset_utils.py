@@ -872,7 +872,6 @@ class StreamingDocDataset(_StatefulDataset):
 
             # Assemble document set owned by this worker:
             # listdir, assemble shardfraglist (ind -> shard, frag)
-            print(f"Worker {self.rank} assembling shard file list")
             shards = [
                 os.path.join(root, name)[len(datapath) + 1 :]
                 for root, dirs, files in os.walk(datapath, topdown=False)
@@ -882,7 +881,6 @@ class StreamingDocDataset(_StatefulDataset):
             shards.sort()  # Ensure consistent sharding across machines
 
             # Find metadata file
-            print(f"Worker {self.rank} querying metadata file")
             countfiles = []
             if os.path.exists(os.path.join(pardir, "meta")):
                 countfiles = [
@@ -900,7 +898,6 @@ class StreamingDocDataset(_StatefulDataset):
 
             # Use shard file sizes to perform partitioning
             # Create shardlist of form shardid -> [start%, end%]
-            print(f"Worker {self.rank} gathering file sizes")
             if len(countfiles) > 0:
                 sizes = {}
                 with open(countpath, "r") as csvfile:
@@ -933,16 +930,18 @@ class StreamingDocDataset(_StatefulDataset):
             # Assemble length of each owned shard file
             doc_counts = {}
             if len(countfiles) > 0:
+                print(f"Worker {self.rank} building doc counts from metadata file")
                 # Count file exists, use it
                 with open(countpath, "r") as csvfile:
                     reader = csv.DictReader(csvfile)
                     for row in reader:
                         fullpath = row["dataset/filename"]
-                        prefix = fullpath.find("/" + dataset) + 1
-                        if prefix > 0:
+                        prefix = fullpath.find(dataset + "/")
+                        if prefix >= 0:
                             key = fullpath[prefix + len(dataset) + 1 :]
                             doc_counts[key] = int(row["documents"])
             else:
+                print(f"Worker {self.rank} building doc counts manually")
                 # Count file does not exist, touch every owned file for length
                 # unique_shardfiles = set(shard for shard, frag in shardfrags)
                 doc_counts = {
@@ -961,6 +960,7 @@ class StreamingDocDataset(_StatefulDataset):
                     self.docset.append([shard, doc_start, doc_end])
                     doccount += doc_end - doc_start + 1
             self._len = doccount
+            print(f"Worker {self.rank} construction complete for dataset {self.datapath}")
 
             if self.verbose:
                 logging.info(
