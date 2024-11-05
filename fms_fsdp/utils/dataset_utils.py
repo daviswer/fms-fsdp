@@ -881,12 +881,41 @@ class StreamingDocDataset(_StatefulDataset):
             ]
             shards.sort()  # Ensure consistent sharding across machines
 
+            # Find metadata file
+            print(f"Worker {self.rank} querying metadata file")
+            countfiles = []
+            if os.path.exists(os.path.join(pardir, "meta")):
+                countfiles = [
+                    x
+                    for x in os.listdir(os.path.join(pardir, "meta"))
+                    if "counts" in x and "csv" in x
+                ]
+            if len(countfiles) > 0:
+                # Count file exists, use it
+                countpath = os.path.join(pardir, "meta", countfiles[0])
+                print(f"Detected metadata file in {countpath}")
+            else:
+                countpath = ""
+                print(f"No metadata file detected in {os.path.join(pardir, 'meta')}, counting documents manually")
+
             # Use shard file sizes to perform partitioning
             # Create shardlist of form shardid -> [start%, end%]
             print(f"Worker {self.rank} gathering file sizes")
-            shard_sizes = [
-                os.path.getsize(os.path.join(datapath, shard)) for shard in shards
-            ]
+            if len(countfiles) > 0:
+                sizes = {}
+                with open(countpath, "r") as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    for row in reader:
+                        fullpath = row["dataset/filename"]
+                        prefix = fullpath.find("/" + dataset) + 1
+                        if prefix > 0:
+                            key = fullpath[prefix + len(dataset) + 1 :]
+                            sizes[key] = int(row["size"])
+                shard_sizes = [sizes[shard] for shard in shards]
+            else:
+                shard_sizes = [
+                    os.path.getsize(os.path.join(datapath, shard)) for shard in shards
+                ]
             print(f"Worker {self.rank} determining local partition")
             shard_sizes = [s / sum(shard_sizes) for s in shard_sizes]
             start = self.rank / self.worldsize
@@ -902,19 +931,9 @@ class StreamingDocDataset(_StatefulDataset):
                 tally += shard_sizes[i]
 
             # Assemble length of each owned shard file
-            print(f"Worker {self.rank} querying metadata file")
-            countfiles = []
-            if os.path.exists(os.path.join(pardir, "meta")):
-                countfiles = [
-                    x
-                    for x in os.listdir(os.path.join(pardir, "meta"))
-                    if "counts" in x and "csv" in x
-                ]
             doc_counts = {}
             if len(countfiles) > 0:
                 # Count file exists, use it
-                countpath = os.path.join(pardir, "meta", countfiles[0])
-                print(f"Detected metadata file in {countpath}")
                 with open(countpath, "r") as csvfile:
                     reader = csv.DictReader(csvfile)
                     for row in reader:
@@ -926,7 +945,6 @@ class StreamingDocDataset(_StatefulDataset):
             else:
                 # Count file does not exist, touch every owned file for length
                 # unique_shardfiles = set(shard for shard, frag in shardfrags)
-                print(f"No metadata file detected in {os.path.join(pardir, 'meta')}, counting documents manually")
                 doc_counts = {
                     shard: self.filehandler.length(os.path.join(datapath, shard))
                     for shard in shardset
