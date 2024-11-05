@@ -439,7 +439,7 @@ class BigramDataset(_WrapperDataset):
             dataset: _StatefulDataset,
     ):
         super().__init__(dataset)
-        self.bigramd = {}
+        self.bigramd = torch.load("/gpfs/daviswer/bigramd.pth")
         self.ratio = 1
         self.state_params = ["ratio"]
 
