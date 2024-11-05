@@ -101,8 +101,6 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         min_length=3,
         seed=cfg.seed,
     )
-    # Add bigram-tokenizing
-    data = BigramDataset(data)
     # Add rescaling/resharding
     data = ScalableShardDataset(
         data,
@@ -118,6 +116,8 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         weights=weights,
         verbose=(rank == 0),
     )
+    # Add bigram-tokenizing
+    data = BigramDataset(data)
     # Wrap above dataset in packing logic to form constant-length lines.
     data = BufferDataset(
         data,
