@@ -910,6 +910,8 @@ class StreamingDocDataset(_StatefulDataset):
             if len(countfiles) > 0:
                 # Count file exists, use it
                 countpath = os.path.join(pardir, "meta", countfiles[0])
+                if self.rank == 0:
+                    print(f"Detected metadata file in {countpath}")
                 with open(countpath, "r") as csvfile:
                     reader = csv.DictReader(csvfile)
                     for row in reader:
