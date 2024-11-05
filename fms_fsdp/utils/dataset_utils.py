@@ -907,11 +907,11 @@ class StreamingDocDataset(_StatefulDataset):
                     reader = csv.DictReader(csvfile)
                     for row in reader:
                         fullpath = row["dataset/filename"]
-                        prefix = fullpath.find("/" + dataset) + 1
-                        if prefix > 0:
+                        prefix = fullpath.find(dataset + "/")
+                        if prefix >= 0:
                             key = fullpath[prefix + len(dataset) + 1 :]
                             sizes[key] = int(row["size"])
-                shard_sizes = [sizes[os.path.join(dataset, shard)] for shard in shards]
+                shard_sizes = [sizes[shard] for shard in shards]
             else:
                 shard_sizes = [
                     os.path.getsize(os.path.join(datapath, shard)) for shard in shards
