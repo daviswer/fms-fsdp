@@ -872,6 +872,7 @@ class StreamingDocDataset(_StatefulDataset):
 
             # Assemble document set owned by this worker:
             # listdir, assemble shardfraglist (ind -> shard, frag)
+            print(f"Worker {self.rank} assembling shard file list")
             shards = [
                 os.path.join(root, name)[len(datapath) + 1 :]
                 for root, dirs, files in os.walk(datapath, topdown=False)
@@ -882,9 +883,11 @@ class StreamingDocDataset(_StatefulDataset):
 
             # Use shard file sizes to perform partitioning
             # Create shardlist of form shardid -> [start%, end%]
+            print(f"Worker {self.rank} gathering file sizes")
             shard_sizes = [
                 os.path.getsize(os.path.join(datapath, shard)) for shard in shards
             ]
+            print(f"Worker {self.rank} determining local partition")
             shard_sizes = [s / sum(shard_sizes) for s in shard_sizes]
             start = self.rank / self.worldsize
             end = (self.rank + 1) / self.worldsize
@@ -899,6 +902,7 @@ class StreamingDocDataset(_StatefulDataset):
                 tally += shard_sizes[i]
 
             # Assemble length of each owned shard file
+            print(f"Worker {self.rank} querying metadata file")
             countfiles = []
             if os.path.exists(os.path.join(pardir, "meta")):
                 countfiles = [
