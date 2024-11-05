@@ -910,8 +910,7 @@ class StreamingDocDataset(_StatefulDataset):
             if len(countfiles) > 0:
                 # Count file exists, use it
                 countpath = os.path.join(pardir, "meta", countfiles[0])
-                if self.rank == 0:
-                    print(f"Detected metadata file in {countpath}")
+                print(f"Detected metadata file in {countpath}")
                 with open(countpath, "r") as csvfile:
                     reader = csv.DictReader(csvfile)
                     for row in reader:
@@ -923,8 +922,7 @@ class StreamingDocDataset(_StatefulDataset):
             else:
                 # Count file does not exist, touch every owned file for length
                 # unique_shardfiles = set(shard for shard, frag in shardfrags)
-                if self.rank == 0:
-                    print(f"No metadata file detected in {os.path.join(pardir, 'meta')}, counting documents manually")
+                print(f"No metadata file detected in {os.path.join(pardir, 'meta')}, counting documents manually")
                 doc_counts = {
                     shard: self.filehandler.length(os.path.join(datapath, shard))
                     for shard in shardset
