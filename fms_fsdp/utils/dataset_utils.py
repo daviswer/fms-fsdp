@@ -911,7 +911,7 @@ class StreamingDocDataset(_StatefulDataset):
                         if prefix > 0:
                             key = fullpath[prefix + len(dataset) + 1 :]
                             sizes[key] = int(row["size"])
-                shard_sizes = [sizes[os.path.join(datapath, shard)] for shard in shards]
+                shard_sizes = [sizes[os.path.join(dataset, shard)] for shard in shards]
             else:
                 shard_sizes = [
                     os.path.getsize(os.path.join(datapath, shard)) for shard in shards
