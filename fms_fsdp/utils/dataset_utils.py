@@ -433,6 +433,39 @@ class PreprocessDataset(_WrapperDataset):
             yield self.aug_fn(out)
 
 
+class BigramDataset(_WrapperDataset):
+    def __init__(
+            self,
+            dataset: _StatefulDataset,
+    ):
+        super().__init__(dataset)
+        self.bigramd = {}
+        self.ratio = 1
+        self.state_params = ["ratio"]
+
+    def __iter__(self):
+        self.setup()
+        dataset = iter(dataset)
+        while True:
+            test = next(dataset)
+            i = 0
+            out = []
+            while i < len(test):
+                if i == len(test) - 1:
+                    out.append(test[-1])
+                    i += 1
+                else:
+                    pair = (test[i],test[i+1])
+                    if pair in self.bigramd:
+                        out.append(self.bigramd[pair])
+                        i += 2
+                    else:
+                        out.append(test[i])
+                        i += 1
+            self.ratio = .999*self.ratio + .001*len(out)/len(test)
+            yield(out)
+
+
 class CheckpointDataset(_WrapperDataset):
     """
     Wrapper for a _StatefulDataset that implements auto-checkpoint saving every n steps.
