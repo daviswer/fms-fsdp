@@ -189,7 +189,7 @@ def main(**kwargs):
                 print(batch_idx, len(paircounts), time.time()-start)
                 start = time.time()
 
-    torch.save([counts, paircounts], "/gpfs/daviswer/results/bigrams/counts_"+str(rank)+".pth")
+    torch.save([counts, paircounts], "/gpfs/daviswer/results/trigrams/counts_"+str(rank)+".pth")
     dist.barrier()
     dist.destroy_process_group()
 

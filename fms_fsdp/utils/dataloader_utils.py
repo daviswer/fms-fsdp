@@ -2,6 +2,7 @@ import torch
 
 from fms_fsdp.utils.dataset_utils import (
     ArrowHandler,
+    BigramDataset,
     BufferDataset,
     CheckpointDataset,
     ParquetHandler,
@@ -115,6 +116,8 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         weights=weights,
         verbose=(rank == 0),
     )
+    # Add bigram retokenization
+    data = BigramDataset(data)
     # Wrap above dataset in packing logic to form constant-length lines.
     data = BufferDataset(
         data,
