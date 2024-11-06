@@ -38,6 +38,7 @@ from fms_fsdp.utils.train_utils import (
 
 
 def run(cfg, local_rank, rank, world_size):
+    start = time.time()
     pg = dist.new_group(use_local_synchronization=True)
 
     # ensure reproducibility
@@ -208,6 +209,15 @@ def run(cfg, local_rank, rank, world_size):
     torch.cuda.reset_peak_memory_stats()
     dist.barrier()
     dist.destroy_process_group(pg)
+
+    end = time.time()
+    print("  Job time: %.2f hours".format((end - start) / 3600))
+    print(
+        "  Total throughput: %.2f tok/sec/gpu".format(
+            cfg.num_steps * cfg.batch_size * cfg.seq_length / (end - start)
+        )
+    )
+
     return loss
 
 

@@ -891,10 +891,8 @@ class StreamingDocDataset(_StatefulDataset):
             if len(countfiles) > 0:
                 # Count file exists, use it
                 countpath = os.path.join(pardir, "meta", countfiles[0])
-                print(f"Detected metadata file in {countpath}")
             else:
                 countpath = ""
-                print(f"No metadata file detected in {os.path.join(pardir, 'meta')}, counting documents manually")
 
             # Use shard file sizes to perform partitioning
             # Create shardlist of form shardid -> [start%, end%]
@@ -913,7 +911,6 @@ class StreamingDocDataset(_StatefulDataset):
                 shard_sizes = [
                     os.path.getsize(os.path.join(datapath, shard)) for shard in shards
                 ]
-            print(f"Worker {self.rank} determining local partition")
             shard_sizes = [s / sum(shard_sizes) for s in shard_sizes]
             start = self.rank / self.worldsize
             end = (self.rank + 1) / self.worldsize
@@ -930,7 +927,6 @@ class StreamingDocDataset(_StatefulDataset):
             # Assemble length of each owned shard file
             doc_counts = {}
             if len(countfiles) > 0:
-                print(f"Worker {self.rank} building doc counts from metadata file")
                 # Count file exists, use it
                 with open(countpath, "r") as csvfile:
                     reader = csv.DictReader(csvfile)
@@ -941,7 +937,6 @@ class StreamingDocDataset(_StatefulDataset):
                             key = fullpath[prefix + len(dataset) + 1 :]
                             doc_counts[key] = int(row["documents"])
             else:
-                print(f"Worker {self.rank} building doc counts manually")
                 # Count file does not exist, touch every owned file for length
                 # unique_shardfiles = set(shard for shard, frag in shardfrags)
                 doc_counts = {
@@ -960,7 +955,6 @@ class StreamingDocDataset(_StatefulDataset):
                     self.docset.append([shard, doc_start, doc_end])
                     doccount += doc_end - doc_start + 1
             self._len = doccount
-            print(f"Worker {self.rank} construction complete for dataset {self.datapath}")
 
             if self.verbose:
                 logging.info(
