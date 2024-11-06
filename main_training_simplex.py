@@ -211,12 +211,11 @@ def run(cfg, local_rank, rank, world_size):
     dist.destroy_process_group(pg)
 
     end = time.time()
-    print("  Job time: {:.2f} hours".format((end - start) / 3600))
-    print(
-        "  Total throughput: {:.2f} tok/sec/gpu".format(
-            cfg.num_steps * cfg.batch_size * cfg.seq_length / (end - start)
+    if rank==0:
+        print(f"  Job time: {((end - start) / 3600):.2f} hours")
+        print(
+            f"  Total throughput: {(cfg.num_steps * cfg.batch_size * cfg.seq_length / (end - start)):.2f} tok/sec/gpu"
         )
-    )
 
     return loss
 
