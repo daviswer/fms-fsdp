@@ -190,6 +190,7 @@ def main(**kwargs):
                 start = time.time()
             paircounts = {k:v for k,v in paircounts.items() if v > 1}
 
+    os.makedirs("/gpfs/daviswer/results/trigrams", exist_ok=True)
     torch.save([counts, paircounts], "/gpfs/daviswer/results/trigrams/counts_"+str(rank)+".pth")
     dist.barrier()
     dist.destroy_process_group()
