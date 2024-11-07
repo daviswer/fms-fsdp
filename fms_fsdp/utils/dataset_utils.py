@@ -1363,3 +1363,57 @@ class ScalableShardDataset(_WrapperDataset):
         # Load values
         for i in range(self.n_logicals):
             self.data[i].load_state_dict(logical_shard_states[i])
+
+
+class StateDeltaDataset(_WrapperDataset):
+    """
+    Appends rank and state dict deltas to outputs so that StatefulDataloader can update
+    its own mirrored state dict. 
+    Output is [data, rank, {key : [shape, indices, updated_values]}]
+    """
+    def __init__(self, dataset: _StatefulDataset):
+        super().__init__(dataset)
+        self.state = None
+
+    def setup(self):
+        if not self.is_setup:
+            super().setup()
+            self.state = self.dataset.state_dict()
+
+    def _compute_delta(self, new, old):
+        # For each key: [size, indices, new vals]
+        keys = new.keys()
+        out = {}
+        for k in keys:
+            newv = new[k]
+            oldv = old[k]
+            if not torch.equal(newv, oldv):
+                newvs = newv.size()
+                oldvs = oldv.size()
+                assert len(newvs)==len(oldvs), f"State dict field dims cannot change over time ({k} size {newvs} was {oldvs})"
+                assert newvs[1:]==oldvs[1:], f"State dict field sizes must agree after dim 0 ({k} size {newvs} was {oldvs})"
+                # In case of size mismatch, adjust old to match new
+                if newvs[0] < oldvs[0]:
+                    oldvs = oldvs[:newvs[0]]
+                elif newvs[0] > oldvs[0]:
+                    oldvs = torch.nn.functional.pad(oldvs, [0,0]*(len(newvs)-1) + [0,newvs[0]-oldvs[0]])
+            # Fetch delta indices
+            delta_indices = newv.sub(oldv).nonzero()
+            if len(delta_indices) > 0:
+                # Fetch delta values
+                delta_vals = torch.stack(
+                    [newv[delta_indices[i].split(1)] for i in range(delta_indices.size(0))],
+                    0,
+                )
+                out[k] = [newv.size(), delta_indices, delta_vals]
+        return out
+
+    def __iter__(self):
+        self.setup()
+        data = iter(self.dataset)
+        while True:
+            out = next(data)
+            new_state = self.dataset.state_dict()
+            delta = self._compute_delta(new_state, self.state)
+            self.state = new_state
+            yield [out, self.rank, delta]
