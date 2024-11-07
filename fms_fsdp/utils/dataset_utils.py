@@ -5,7 +5,7 @@ import os
 import random
 import time
 from copy import deepcopy
-from typing import Any, Callable, List, Optional, Set, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -1375,11 +1375,6 @@ class StateDeltaDataset(_WrapperDataset):
         super().__init__(dataset)
         self.state = None
 
-    def setup(self):
-        if not self.is_setup:
-            super().setup()
-            self.state = self.dataset.state_dict()
-
     def _compute_delta(self, new, old):
         # For each key: [size, indices, new vals]
         keys = new.keys()
@@ -1414,6 +1409,41 @@ class StateDeltaDataset(_WrapperDataset):
         while True:
             out = next(data)
             new_state = self.dataset.state_dict()
-            delta = self._compute_delta(new_state, self.state)
+            if self.state is None:
+                delta = new_state
+            else:
+                delta = self._compute_delta(new_state, self.state)
             self.state = new_state
             yield [out, self.rank, delta]
+
+
+class LoaderMonitor():
+    def __init__(self):
+        self.state = {}
+
+    def collate(self, inp):
+        # inp: [[out tensor, rank, {key: [size, ind tensor, val tensor]}]]
+        
+        # Get eventual output
+        if isinstance(inp[0][0], torch.tensor):
+            out = torch.stack([x[0] for x in inp], dim=0)
+        else:
+            out = [torch.stack([x[0][i] for x in inp], dim=0) for i in range(len(inp[0][0]))]
+        
+        # Update state
+        for row in inp:
+            rank = row[1]
+            if rank not in self.state:
+                self.state[rank] = row[2]
+            else:
+                self.state[rank] = self.apply_delta(row[2], self.state[rank])
+        
+        return out
+    
+    def state_dict(self):
+        rs = list(self.state.keys())
+        minr = min(rs)
+        maxr = max(rs)
+        return [self.state[i] for i in range(minr, maxr+1, 1)]
+
+

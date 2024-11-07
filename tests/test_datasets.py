@@ -1009,3 +1009,16 @@ def test_all():
     test_single_epoch()
     test_two_epoch()
     test_two_loader()
+
+def temp():
+    d = basic_sampler_scalable(2, 5, ["dataset_1", "dataset_2"], [7,2], n_logical_shards=30)
+    d = StateDeltaDataset(d)
+    l = data.DataLoader(d, batch_size=2, num_workers=3, collate_fn=lambda x: x)
+    m = LoaderMonitor()
+    for i, x in enumerate(l):
+        o = m.collate(x)
+        if i > 15:
+            break
+    return m, d, o
+
+    # Comparison: worldsize 15, rank 6, appropriate num steps
