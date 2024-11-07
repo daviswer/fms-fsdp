@@ -188,6 +188,7 @@ def main(**kwargs):
             if rank==0:
                 print(batch_idx, len(paircounts), time.time()-start)
                 start = time.time()
+            paircounts = {k:v for k,v in paircounts.items() if v > 500/(batch_idx/cfg.num_steps)}
 
     torch.save([counts, paircounts], "/gpfs/daviswer/results/trigrams/counts_"+str(rank)+".pth")
     dist.barrier()
