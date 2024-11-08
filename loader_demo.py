@@ -67,6 +67,9 @@ def main(**kwargs):
     if rank == 0:
         print("Datasets constructed!")
 
+    # Construct device mesh
+    mesh = dist.device_mesh.init_device_mesh("cpu", [world_size])
+
     # Train
     if rank == 0:
         print(f"Training for {cfg.num_steps} steps")
@@ -80,12 +83,12 @@ def main(**kwargs):
     if rank==0:
         print("Iteration complete")
 
-    monitor.save_state_dict(os.path.join(cfg.ckpt_save_path, "loader_dcp_state"))
+    monitor.save_state_dict(os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
     if rank==0:
         print("DCP state saved")
 
-    reload = monitor.load_state_dict(os.path.join(cfg.ckpt_save_path, "loader_dcp_state"))
+    reload = monitor.load_state_dict(os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
     if rank==0:
         print("DCP state loaded")
