@@ -896,21 +896,21 @@ class StreamingDocDataset(_StatefulDataset):
 
             # Use shard file sizes to perform partitioning
             # Create shardlist of form shardid -> [start%, end%]
-            # if len(countfiles) > 0:
-            #     sizes = {}
-            #     with open(countpath, "r") as csvfile:
-            #         reader = csv.DictReader(csvfile)
-            #         for row in reader:
-            #             fullpath = row["dataset/filename"]
-            #             prefix = fullpath.find(dataset + "/")
-            #             if prefix >= 0:
-            #                 key = fullpath[prefix + len(dataset) + 1 :]
-            #                 sizes[key] = int(row["size"])
-            #     shard_sizes = [sizes[shard] for shard in shards]
-            # else:
-            shard_sizes = [
-                os.path.getsize(os.path.join(datapath, shard)) for shard in shards
-            ]
+            if len(countfiles) > 0:
+                sizes = {}
+                with open(countpath, "r") as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    for row in reader:
+                        fullpath = row["dataset/filename"]
+                        prefix = fullpath.find(dataset + "/")
+                        if prefix >= 0:
+                            key = fullpath[prefix + len(dataset) + 1 :]
+                            sizes[key] = int(row["size"])
+                shard_sizes = [sizes[shard] for shard in shards]
+            else:
+                shard_sizes = [
+                    os.path.getsize(os.path.join(datapath, shard)) for shard in shards
+                ]
             shard_sizes = [s / sum(shard_sizes) for s in shard_sizes]
             start = self.rank / self.worldsize
             end = (self.rank + 1) / self.worldsize
