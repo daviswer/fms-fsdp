@@ -928,7 +928,7 @@ class StreamingDocDataset(_StatefulDataset):
         self.epochs_seen = -1
         self.tokens_seen = 0
         self.docs_seen = 0
-        self.percent_seen = 0
+        self.percent_seen = 0.0
 
         self.state_params = [
             # "dataset", # can't put strings into tensor
