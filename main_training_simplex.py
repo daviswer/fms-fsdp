@@ -324,7 +324,7 @@ def main(**kwargs):
         simplex.sort(key=lambda x: x[-1])
         report_mups("SIMPLEX COMPLETE:", [mup_params + ["loss"]] + simplex)
 
-    for i in range(start_step, cfg.mup_search_steps):
+    for i in range(start_step+1, cfg.mup_search_steps):
         centroid = torch.tensor(simplex)[:-1, :-1].mean(0)
         delta = centroid - torch.tensor(simplex[-1][:-1])
         candidate = centroid + delta
