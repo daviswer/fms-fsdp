@@ -119,7 +119,7 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         pack_hard=True,
     )
     # Shuffle outputs in length 1k buffer. Consecutive lines appear 1k steps apart on average.
-    data = PreloadBufferDataset(data, 1000)
+    # data = PreloadBufferDataset(data, 1000)
 
     # Enable auto-saving
     assert (
