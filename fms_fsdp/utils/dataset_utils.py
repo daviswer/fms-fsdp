@@ -415,7 +415,7 @@ class PreloadBufferDataset(_WrapperDataset):
 
     def state_dict(self):
         # Write generator state manually
-        self.g_state = self.generator.get_state()
+        self.g_state = self.generator.get_state().tolist()
         # Prune buffer so it can be resharded in future
         self.buffer = self.buffer[: self.buffer_size]
         out = super().state_dict()
@@ -425,7 +425,7 @@ class PreloadBufferDataset(_WrapperDataset):
         super().load_state_dict(state_dict)
         # Manually set generator state if it exists
         if self.g_state is not None:
-            self.generator.set_state(self.g_state)
+            self.generator.set_state(torch.tensor(self.g_state, dtype=torch.uint8))
         # Manually set buffer size
         self.buffer_size = len(self.buffer)
 
@@ -1297,8 +1297,6 @@ class ScalableShardDataset(_WrapperDataset):
         # Convert to tensor form
         out = {}
         for k, v in state_dict.items():
-            if self.rank == 0:
-                print(k, v)
             v = torch.tensor(v)
             if len(v.shape) == 0:
                 k = k + ".scalar"
