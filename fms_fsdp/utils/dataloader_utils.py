@@ -9,6 +9,7 @@ from fms_fsdp.utils.dataset_utils import (
     PreprocessDataset,
     SamplingDataset,
     ScalableShardDataset,
+    StateDeltaDataset,
     StreamingDocDataset,
 )
 
@@ -146,6 +147,9 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
     data = PreprocessDataset(data, torch.IntTensor)
     for p in postprocess:
         data = PreprocessDataset(data, p)
+
+    # Apply deltastate
+    data = StateDeltaDataset(data)
 
     def ident(x):
         return x
