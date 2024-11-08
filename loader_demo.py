@@ -75,6 +75,9 @@ def main(**kwargs):
         if i==cfg.num_steps:
             break
 
+        if i==0 and rank==0:
+            print(inp)
+
         x,y = monitor.collate(inp)
 
     if rank==0:
