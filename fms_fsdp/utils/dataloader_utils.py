@@ -139,7 +139,6 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
     # Add rescaling/resharding
     data = ScalableShardDataset(
         data,
-        cfg.eos_token,
         n_logical_shards=cfg.logical_shards,
     )
 
