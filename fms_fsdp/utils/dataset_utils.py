@@ -1297,8 +1297,8 @@ class ScalableShardDataset(_WrapperDataset):
         # Convert to tensor form
         out = {}
         for k, v in state_dict.items():
-            if self.rank == 0:
-                print(k,v)
+            if self.rank == 0 and k=="PreloadBufferDataset.buffer":
+                print([len(x) for x in v])
             v = torch.tensor(v)
             if len(v.shape) == 0:
                 k = k + ".scalar"
