@@ -1459,6 +1459,7 @@ class LoaderMonitor():
                 self.state[rank] = row[2]
                 self.n_updates[rank] = 1
             else:
+                print(row[0])
                 self.state[rank] = self.apply_delta(row[2], self.state[rank])
                 self.n_updates[rank] += 1
         
