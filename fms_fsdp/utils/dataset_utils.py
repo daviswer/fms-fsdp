@@ -1439,7 +1439,7 @@ class LoaderMonitor():
             elif deltas[0] > vs[0]:
                 state[k] = torch.nn.functional.pad(state[k], [0,0]*(len(deltas)-1) + [0,deltas[0]-vs[0]])
             # Apply deltas
-            print(k, k[2][0])
+            print(k, delta[k][2][0], delta[k][2].dtype, state[k].dtype)
             for i,tup in enumerate(delta[k][1]):
                 state[k][tup.split(1)] = delta[k][2][i]
         return state
