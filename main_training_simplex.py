@@ -241,6 +241,7 @@ def main(**kwargs):
     torch.cuda.set_device(local_rank)
     setup()
     setup_environ_flags()
+    os.makedirs(cfg.ckpt_save_path, exist_ok=True)
 
     # Build mup grid
 
@@ -296,28 +297,34 @@ def main(**kwargs):
         report("  Final loss:", out)
         torch.cuda.empty_cache()
         return out
+    
+    # Find checkpoint if it exists
+    start_step = 0
+    if os.path.exists(cfg.ckpt_load_path) and os.path.exists(os.path.join(cfg.ckpt_load_path, "simplex.pth")):
+        start_step, simplex = torch.load(os.path.join(cfg.ckpt_load_path, "simplex.pth"))
+        report_mups(f"CHECKPOINT FOUND FOR STEP {start_step}", [mup_params + ["loss"]] + simplex)
+    else:
+        # Assemble initial simplex and evaluate
+        report("NO CHECKPOINT FOUND, ASSEMBLING INITIAL SIMPLEX")
+        n = len(mup_params)
+        # init_generator = torch.Generator()
+        # init_generator.manual_seed(cfg.seed)
+        # flips = torch.randn(len(mup_params), generator=init_generator).sign()
+        # flips = torch.tensor([-1, 1, -1, 1, 1, -1])
+        simplex = torch.eye(n)
+        simplex = torch.cat(
+            [torch.ones(n, 1).neg().mul(((1 + n) ** 0.5 - 1) / n), simplex], dim=1
+        )
+        simplex = simplex - simplex.mean(1, True)
+        # candidates = simplex.t().mul(flips).tolist()
+        candidates = simplex.t().tolist()
+        simplex = []
+        for candidate in candidates:
+            simplex.append(candidate + [eval(candidate, candidate)])
+        simplex.sort(key=lambda x: x[-1])
+        report_mups("SIMPLEX COMPLETE:", [mup_params + ["loss"]] + simplex)
 
-    # Assemble initial simplex and evaluate
-    report("ASSEMBLING INITIAL SIMPLEX")
-    n = len(mup_params)
-    # init_generator = torch.Generator()
-    # init_generator.manual_seed(cfg.seed)
-    # flips = torch.randn(len(mup_params), generator=init_generator).sign()
-    # flips = torch.tensor([-1, 1, -1, 1, 1, -1])
-    simplex = torch.eye(n)
-    simplex = torch.cat(
-        [torch.ones(n, 1).neg().mul(((1 + n) ** 0.5 - 1) / n), simplex], dim=1
-    )
-    simplex = simplex - simplex.mean(1, True)
-    # candidates = simplex.t().mul(flips).tolist()
-    candidates = simplex.t().tolist()
-    simplex = []
-    for candidate in candidates:
-        simplex.append(candidate + [eval(candidate, candidate)])
-    simplex.sort(key=lambda x: x[-1])
-    report_mups("SIMPLEX COMPLETE:", [mup_params + ["loss"]] + simplex)
-
-    for i in range(cfg.mup_search_steps):
+    for i in range(start_step, cfg.mup_search_steps):
         centroid = torch.tensor(simplex)[:-1, :-1].mean(0)
         delta = centroid - torch.tensor(simplex[-1][:-1])
         candidate = centroid + delta
@@ -372,6 +379,8 @@ def main(**kwargs):
 
         simplex.sort(key=lambda x: x[-1])
         report_mups(f"STEP {i} COMPLETE:", [mup_params + ["loss"]] + simplex)
+        if rank == 0:
+            torch.save((i, simplex), os.path.join(cfg.ckpt_save_path, "simplex.pth"))
 
     mup_scale_vals = simplex[0][:-1]
 
