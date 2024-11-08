@@ -10,6 +10,8 @@ from typing import Any, Callable, Dict, List, Optional, Set, Union
 import pyarrow as pa
 import pyarrow.parquet as pq
 import torch
+import torch.distributed
+import torch.distributed.tensor
 import torch.utils.data as data
 from transformers import AutoTokenizer  # type: ignore
 
@@ -1420,12 +1422,30 @@ class StateDeltaDataset(_WrapperDataset):
 class LoaderMonitor():
     def __init__(self):
         self.state = {}
+        self.n_updates = {}
+
+    def apply_delta(self, delta, state):
+        for k in delta.keys():
+            # delta: k -> [size, inds, vals]
+            deltas = delta[k][0]
+            vs = state[k].size()
+            assert len(deltas)==len(vs), f"State dict field dims cannot change over time ({k} size {deltas} was {vs})"
+            assert deltas[1:]==vs[1:], f"State dict field sizes must agree after dim 0 ({k} size {deltas} was {vs})"
+            # in case of size mismatch, adjust state to match delta
+            if deltas[0] < vs[0]:
+                state[k] = state[k][:deltas[0]]
+            elif deltas[0] > vs[0]:
+                state[k] = torch.nn.functional.pad(state[k], [0,0]*(len(deltas)-1) + [0,deltas[0]-vs[0]])
+            # Apply deltas
+            for i,tup in enumerate(delta[k][1]):
+                state[k][tup.split(1)] = delta[k][2][i]
+        return state
 
     def collate(self, inp):
         # inp: [[out tensor, rank, {key: [size, ind tensor, val tensor]}]]
         
         # Get eventual output
-        if isinstance(inp[0][0], torch.tensor):
+        if isinstance(inp[0][0], torch.Tensor):
             out = torch.stack([x[0] for x in inp], dim=0)
         else:
             out = [torch.stack([x[0][i] for x in inp], dim=0) for i in range(len(inp[0][0]))]
@@ -1435,8 +1455,10 @@ class LoaderMonitor():
             rank = row[1]
             if rank not in self.state:
                 self.state[rank] = row[2]
+                self.n_updates[rank] = 1
             else:
                 self.state[rank] = self.apply_delta(row[2], self.state[rank])
+                self.n_updates[rank] += 1
         
         return out
     
@@ -1445,5 +1467,51 @@ class LoaderMonitor():
         minr = min(rs)
         maxr = max(rs)
         return [self.state[i] for i in range(minr, maxr+1, 1)]
+    
+    def save_state_dict(self, path:str, device_mesh=None, placements=None):
+        state = self.state_dict()
+        # Flip list[dict[tensor]] to dict[list[tensor]], and concat
+        state = {k:torch.cat([d[k] for d in state], 0) for k in state[0]}
+        # Construct dtensors from tensors
+        dstate = {
+            k: torch.distributed.tensor.DTensor.from_local(
+                v,
+                device_mesh,
+                placements,
+            )
+            for k, v in state.items()
+        }
+        # Write state dict
+        writer = torch.distributed.checkpoint.FileSystemWriter(path)
+        torch.distributed.checkpoint.save(
+            dstate,
+            writer,
+        )
+
+    def load_state_dict(self, path:str, device_mesh=None, placements=None):
+        state = self.state_dict()
+        # Flip list[dict[tensor]] to dict[list[tensor]], and concat
+        state = {k:torch.cat([d[k] for d in state], 0) for k in state[0]}
+        # Construct dtensors from tensors
+        dstate = {
+            k: torch.distributed.tensor.DTensor.from_local(
+                v,
+                device_mesh,
+                placements,
+            )
+            for k, v in state.items()
+        }
+        # Read state dict
+        reader = torch.distributed.checkpoint.FileSystemReader(path)
+        torch.distributed.checkpoint.load_state_dict(
+            dstate,
+            reader,
+        )
+        # Get local tensors from dtensors
+        state = {k:v.to_local() for k,v in dstate.items()}
+
+        return state
+        
+        # TODO: split into list, send list into worker processes. Need actual dataloader interfacing for this!
 
 

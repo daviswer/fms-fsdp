@@ -1010,15 +1010,26 @@ def test_all():
     test_two_epoch()
     test_two_loader()
 
+def ident(x):
+    return x
+
 def temp():
     d = basic_sampler_scalable(2, 5, ["dataset_1", "dataset_2"], [7,2], n_logical_shards=30)
+    d = PreprocessDataset(d, torch.IntTensor)
     d = StateDeltaDataset(d)
-    l = data.DataLoader(d, batch_size=2, num_workers=3, collate_fn=lambda x: x)
+    l = data.DataLoader(d, batch_size=2, num_workers=3, collate_fn=ident, prefetch_factor=1)
     m = LoaderMonitor()
     for i, x in enumerate(l):
         o = m.collate(x)
-        if i > 15:
+        if i == 30-1:
             break
-    return m, d, o
+    o = x
 
-    # Comparison: worldsize 15, rank 6, appropriate num steps
+    # 5 ranks, each owns 3 workers, each owns 2 logical ranks. 
+    # Each worker calls 10 times.
+    d2 = basic_sampler_scalable(6,15,["dataset_1", "dataset_2"], [7,2], n_logical_shards=30)
+    l2 = iter(d2)
+    for i, x in enumerate(l2):
+        if i == 20-1:
+            break
+    return m, d2, o

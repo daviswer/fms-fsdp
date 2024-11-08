@@ -148,12 +148,15 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
     for p in postprocess:
         data = PreprocessDataset(data, p)
 
+    def ident(x):
+        return x
+
     # Final wrapping
     assert (
         cfg.checkpoint_interval % cfg.num_workers == 0
     ), f"Workers per device {cfg.num_workers} must divide checkpoint interval {cfg.checkpoint_interval} evenly"
     return torch.utils.data.DataLoader(
-        data, num_workers=cfg.num_workers, batch_size=cfg.batch_size
+        data, num_workers=cfg.num_workers, batch_size=cfg.batch_size, collate_fn=ident,
     )
 
 
