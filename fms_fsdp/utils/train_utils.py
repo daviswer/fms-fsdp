@@ -86,7 +86,7 @@ def train(
 
         optimizer.zero_grad()
         output, cache = model(input, use_cache=True)
-        if rank==0:
+        if rank==0 and batch_idx==0:
             torch.save(cache, os.path.join(cfg.ckpt_save_path, "kv_cache.pth"))
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
