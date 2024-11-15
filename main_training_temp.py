@@ -295,7 +295,7 @@ def main(**kwargs):
     
     # Assemble initial hparams and evaluate
     candidate = [getattr(cfg, s) for s in mup_params]
-    eval(candidate, candidate)
+    eval(candidate)
 
     dist.barrier()
     dist.destroy_process_group()
