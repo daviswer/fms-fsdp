@@ -281,16 +281,10 @@ def main(**kwargs):
             ],
         )
 
-    def set_mups(mup_k, mup_v, old_mup_v, cfg):
-        new_cfg = deepcopy(cfg)
-        report_mups("  Starting run:", [mup_k, old_mup_v, ["->"] * len(mup_v), mup_v])
-        for k, v in zip(mup_k, mup_v):
-            setattr(new_cfg, k, getattr(cfg, k) * 2 ** (v * explore_ratio))
-        return new_cfg
-
-    def eval(candidate, old_candidate):
+    def eval(candidate):
+        report_mups("  Starting run:", [mup_params, candidate])
         out = run(
-            set_mups(mup_params, candidate, old_candidate, cfg),
+            cfg,
             local_rank,
             rank,
             world_size,
