@@ -29,6 +29,7 @@ def train(
     # checkpointer,
     start_step,
     tokens_seen,
+    verbose=False,
 ):
     model.train()
     ddp_stats = torch.zeros(3).to(local_rank)
@@ -90,6 +91,13 @@ def train(
             # allocated_mem = torch.cuda.max_memory_allocated(
             #     device=torch.cuda.current_device()
             # )
+            if rank==0 and verbose:
+                print("    step:", batch_idx)
+                print("    loss:", current_loss)
+                print("    tokens seen:", total_tokens_seen)
+                print("    gradient norm:", current_gnorm)
+                print("    current step time:", current_step_time)
+                print("    current token per gpu per sec:", current_throughput)
 
             start = time.time()
             ddp_stats.zero_()
