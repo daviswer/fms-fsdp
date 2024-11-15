@@ -299,6 +299,7 @@ def main(**kwargs):
         return out
     
     # Assemble initial hparams and evaluate
+    report(cfg.mup_emb_scale, getattr(cfg, 'mup_emb_scale'), getattr(cfg, mup_params[0]))
     candidate = [getattr(cfg, s) for s in mup_params]
     eval(candidate, candidate)
 
