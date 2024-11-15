@@ -181,6 +181,28 @@ def get_model_config(model_variant):
             max_expected_seq_len=4096,
             rope_theta=500000.0,
         )
+    elif model_variant == "llama3_70b_4k_medium":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=3172,
+            nheads=24,
+            kvheads=3,
+            nlayers=80,
+            hidden_grow_factor=3.5,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
+    elif model_variant == "llama3_70b_4k_small":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=2048,
+            nheads=16,
+            kvheads=2,
+            nlayers=80,
+            hidden_grow_factor=3.5,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
     elif model_variant == "llama3_70b_4k_tiny":
         llama_config = LLaMAConfig(
             src_vocab_size=128256,
