@@ -1,11 +1,16 @@
+import inspect
+import gc
 import math
 import os
+import time
 
 import fire
 import torch
+import torch.distributed
 import torch.nn as nn
 import torch.optim as optim
 from copy import deepcopy
+from datetime import timedelta
 from fms.models.llama import LLaMA, LLaMABlock
 from fms.modules.attention import MultiHeadAttention
 from fms.modules.embedding import WordEmbedding
@@ -33,6 +38,13 @@ from fms_fsdp.utils.train_utils import (
 
 
 def run(cfg, local_rank, rank, world_size):
+    start = time.time()
+    pg = dist.new_group(use_local_synchronization=True)
+
+    # ensure reproducibility
+    torch.cuda.manual_seed(cfg.seed)
+    torch.manual_seed(cfg.seed)
+
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
     llama_config = set_mup_from_cfg(cfg, llama_config)
@@ -62,6 +74,7 @@ def run(cfg, local_rank, rank, world_size):
     # FSDP
     model = FSDP(
         model,
+        process_group=pg,
         auto_wrap_policy=wrapping_policy,
         mixed_precision=mixed_precision_policy,
         sharding_strategy=sharding_strategy_policy,
@@ -82,6 +95,7 @@ def run(cfg, local_rank, rank, world_size):
 
     # torch compile
     if cfg.use_torch_compile:
+        torch._dynamo.reset()
         # the default accumulated_cache_size_limit=64 is not enough for 70b model, so we make it 128 here
         torch._dynamo.config.accumulated_cache_size_limit = 128
         model = torch.compile(model)
@@ -170,7 +184,8 @@ def run(cfg, local_rank, rank, world_size):
     # profiler = get_profiler(cfg, rank)
 
     # Train
-    return train(
+    # loss = 0
+    loss = train(
         cfg,
         model,
         local_rank,
@@ -182,31 +197,52 @@ def run(cfg, local_rank, rank, world_size):
         # checkpointer,
         0,
         0,
-    ).item()
+        True,
+    )
+
+    # Cleanup
+    del model, optimizer, params_0d, params_1d, params_2d
+    # calling_namespace = inspect.currentframe().f_back
+    # for _var in ["model", "optimizer", "scheduler", "train_loader", "params_0d", "params_1d", "params_2d"]:
+    #     calling_namespace.f_locals.pop(_var, None)
+    gc.collect()
+    torch.cuda.empty_cache()
+    torch.cuda.reset_peak_memory_stats()
+    dist.barrier()
+    dist.destroy_process_group(pg)
+
+    end = time.time()
+    if rank==0:
+        print(f"  Job time: {((end - start) / 3600):.2f} hours")
+        print(
+            f"  Total throughput: {(cfg.num_steps * cfg.batch_size * cfg.seq_length / (end - start)):.2f} tok/sec/gpu"
+        )
+
+    return loss
 
 
 def main(**kwargs):
-    # get configs
-    cfg = config.train_config()
-    update_config(cfg, **kwargs)
-
-    # ensure reproducibility
-    torch.cuda.manual_seed(cfg.seed)
-    torch.manual_seed(cfg.seed)
-
     # torchrun specific
     local_rank = int(os.environ["LOCAL_RANK"])
     rank = int(os.environ["RANK"])
     world_size = int(os.environ["WORLD_SIZE"])
 
+    # get configs
+    cfg = config.train_config()
+    update_config(cfg, **kwargs)
+    llama_config = get_model_config(cfg.model_variant)
+    cfg = set_mup_from_cfg(llama_config, cfg)
+    # Overwrite any llama_config vals with the desired kwarg vals
+    update_config(cfg, **kwargs)
+
     if rank == 0:
         print(f"--> running with these configs {cfg}")
 
     # some setups
-    setup()
     torch.cuda.set_device(local_rank)
-    torch.cuda.empty_cache()
+    setup()
     setup_environ_flags()
+    os.makedirs(cfg.ckpt_save_path, exist_ok=True)
 
     # Build mup grid
 
@@ -221,65 +257,45 @@ def main(**kwargs):
         "mup_lr_dscale",
         "learning_rate",
     ]
-    mup_scale_vals = [0 for _ in mup_params]
 
     def report(*args):
         if rank == 0:
             print()
             print(*args)
 
-    def report_mups(prefix, k, v):
+    def mup_format(x):
+        if isinstance(x, str) and len(x) > 3:
+            return x + " " * max(0, 15 - len(x))
+        elif isinstance(x, float):
+            return "{:.3f}".format(x)
+        else:
+            return str(x)
+
+    def report_mups(prefix, vals):
+        # vals is a rectangular list of lists
         report(
             prefix,
             *[
-                "\t".join([str(x), str(y), str(z)])
-                for x, y, z in zip(["\n"] * len(k), k, v)
+                "\t".join([mup_format(x) for x in group])
+                for group in zip(["\n"] * len(vals[0]), *vals)
             ],
         )
 
-    def set_mups(mup_k, mup_v, cfg):
-        new_cfg = deepcopy(cfg)
-        report_mups("  Starting run:", mup_k, mup_v)
-        for k, v in zip(mup_k, mup_v):
-            setattr(new_cfg, k, getattr(cfg, k) * 2 ** (v * explore_ratio))
-        return new_cfg
-
-    # Get baseline
-    new_cfg = set_mups(mup_params, mup_scale_vals, cfg)
-    best_loss = run(new_cfg, local_rank, rank, world_size)
-    report("BASELINE COMPLETE, TARGET IS:", best_loss)
-
-    # Looped search
-    for i in range(cfg.mup_search_steps):
-        for j in range(len(mup_params)):
-            report("STEP", i, "ADVANCING", mup_params[j])
-            start_val = mup_scale_vals[j]
-            for sign in [1, -1]:
-                candidate = deepcopy(mup_scale_vals)
-                candidate[j] = start_val + sign * 2 ** (-i - 1)
-                new_cfg = set_mups(mup_params, candidate, cfg)
-                torch._dynamo.reset()
-                torch.cuda.empty_cache()
-                new_loss = run(new_cfg, local_rank, rank, world_size)
-                report("  Run complete, loss is:", new_loss)
-                if new_loss < best_loss:
-                    report("NEW RECORD")
-                    mup_scale_vals = candidate
-
-        report_mups(
-            "ROUND " + str(i) + " COMPLETE. CURRENT VALUES ARE:",
-            mup_params,
-            mup_scale_vals,
+    def eval(candidate):
+        report_mups("  Starting run:", [mup_params, candidate])
+        out = run(
+            cfg,
+            local_rank,
+            rank,
+            world_size,
         )
-
-    # Final results
-    report_mups("SEARCH COMPLETE. BEST SCALE VALUES ARE:", mup_params, mup_scale_vals)
-
-    final = [
-        getattr(cfg, mup_params[i]) * 2 ** (explore_ratio * mup_scale_vals[i])
-        for i in range(len(mup_params))
-    ]
-    report_mups("CORRESPONDING FINAL VALUES ARE:", mup_params, final)
+        report("  Final loss:", out)
+        torch.cuda.empty_cache()
+        return out
+    
+    # Assemble initial hparams and evaluate
+    candidate = [getattr(cfg, s) for s in mup_params]
+    eval(candidate)
 
     dist.barrier()
     dist.destroy_process_group()

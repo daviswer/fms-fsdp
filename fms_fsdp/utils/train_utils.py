@@ -1,5 +1,4 @@
 import os
-from dataclasses import asdict
 from functools import partial
 
 
@@ -26,54 +25,17 @@ def train(
     train_loader,
     optimizer,
     scheduler,
-    profiler,
-    checkpointer,
+    # profiler,
+    # checkpointer,
     start_step,
     tokens_seen,
+    verbose=False,
 ):
-    if cfg.tracker:
-        if cfg.tracker not in ["wandb", "aim"]:
-            raise ValueError(f"tracker {cfg.tracker} not supported.")
-        tracker_dir = cfg.tracker_dir
-        project_name = cfg.tracker_project_name
-        run_id = cfg.tracker_run_id
-
-        if cfg.tracker == "wandb":
-            try:
-                import wandb  # type: ignore
-            except ImportError:
-                raise ImportError("tracker is set to wandb but wandb is not installed.")
-            if rank == 0:
-                print(f"--> wandb is enabled!")
-                try:
-                    wandb.init(
-                        project=project_name,
-                        dir=tracker_dir,
-                        resume="allow",
-                        id=run_id,
-                    )
-                except wandb.errors.UsageError:
-                    raise ValueError(
-                        "wandb failed to init, did you pass your wandb api key via WANDB_API_KEY?"
-                    )
-                wandb.config = asdict(cfg)
-
-        if cfg.tracker == "aim":
-            try:
-                from aim import Run  # type: ignore
-            except ImportError:
-                raise ImportError("tracker is set to aim but aim is not installed.")
-            if rank == 0:
-                print(f"--> aim is enabled!")
-                run = Run(
-                    experiment=project_name,
-                    repo=tracker_dir,
-                    run_hash=run_id,
-                )
-                run["hparams"] = asdict(cfg)
-
     model.train()
     ddp_stats = torch.zeros(3).to(local_rank)
+
+    if rank == 0:
+        print("    Training begins!")
 
     start = time.time()
     loop_start = time.time()
@@ -98,8 +60,8 @@ def train(
         ddp_stats[0] += loss.item()
         ddp_stats[2] += 1
 
-        if profiler:
-            profiler.step()
+        # if profiler:
+        #     profiler.step()
 
         if batch_idx % cfg.report_interval == 0:
             dist.all_reduce(ddp_stats, op=dist.ReduceOp.SUM)
@@ -110,72 +72,57 @@ def train(
             new_tokens_seen = (
                 (batch_idx - start_step) * world_size * cfg.batch_size * cfg.seq_length
             )
-            if rank == 0:
-                total_tokens_seen = tokens_seen + new_tokens_seen
-                current_loss = train_loss.item()
-                current_lr = scheduler.get_last_lr()[0]
-                current_gnorm = g_norm.item()
-                current_step_time = (time.time() - start) / cfg.report_interval
-                overall_step_time = elapsed_time / (batch_idx - start_step)
-                current_throughput = int(
-                    cfg.batch_size * cfg.seq_length / current_step_time
-                )
-                overall_throughput = int(
-                    cfg.batch_size * cfg.seq_length / overall_step_time
-                )
-                reserved_mem = torch.cuda.max_memory_reserved(
-                    device=torch.cuda.current_device()
-                )
-                allocated_mem = torch.cuda.max_memory_allocated(
-                    device=torch.cuda.current_device()
-                )
-
-                print("step:", batch_idx)
-                print("loss:", current_loss)
-                print("LR:", current_lr)
-                print("tokens seen:", total_tokens_seen)
-                print("gradient norm:", current_gnorm)
-                print("reserved memory:", reserved_mem)
-                print("allocated memory:", allocated_mem)
-                print("current step time:", current_step_time)
-                print("overall step time:", overall_step_time)
-                print("current token per gpu per sec:", current_throughput)
-                print("overall token per gpu per sec:", overall_throughput)
-                print(
-                    "overall token per day:",
-                    int(new_tokens_seen / elapsed_time * 3600 * 24),
-                )
-                if cfg.tracker:
-                    vals_to_track = {
-                        "learning rate": current_lr,
-                        "loss": current_loss,
-                        "gradient norm": current_gnorm,
-                        "token seen": total_tokens_seen,
-                        "current throughput (token per gpu per sec)": current_throughput,
-                        "overall throughput (token per gpu per sec)": overall_throughput,
-                        "gpu reserved memory": reserved_mem,
-                        "gpu allocated memory": allocated_mem,
-                    }
-                    if cfg.tracker == "wandb":
-                        tracker_fn = wandb.log
-                    elif cfg.tracker == "aim":
-                        tracker_fn = run.track
-                    tracker_fn(vals_to_track, step=batch_idx)
+            # if rank == 0:
+            total_tokens_seen = tokens_seen + new_tokens_seen
+            current_loss = train_loss.item()
+            # current_lr = scheduler.get_last_lr()[0]
+            current_gnorm = g_norm.item()
+            current_step_time = (time.time() - start) / cfg.report_interval
+            # overall_step_time = elapsed_time / (batch_idx - start_step)
+            current_throughput = int(
+                cfg.batch_size * cfg.seq_length / current_step_time
+            )
+            # overall_throughput = int(
+            #     cfg.batch_size * cfg.seq_length / overall_step_time
+            # )
+            # reserved_mem = torch.cuda.max_memory_reserved(
+            #     device=torch.cuda.current_device()
+            # )
+            # allocated_mem = torch.cuda.max_memory_allocated(
+            #     device=torch.cuda.current_device()
+            # )
+            if rank==0 and verbose:
+                print("    step:", batch_idx)
+                print("    loss:", current_loss)
+                print("    tokens seen:", total_tokens_seen)
+                print("    gradient norm:", current_gnorm)
+                print("    current step time:", current_step_time)
+                print("    current token per gpu per sec:", current_throughput)
 
             start = time.time()
             ddp_stats.zero_()
-        torch.cuda.reset_peak_memory_stats(device=torch.cuda.current_device())
+            if torch.isnan(train_loss) or train_loss > 15:
+                break
+            if batch_idx > 999 and train_loss > 6:
+                break
 
-        if batch_idx % cfg.checkpoint_interval == 0:
-            checkpointer.save(
-                batch_idx,
-                model,
-                optimizer,
-                None,
-                tokens_seen=tokens_seen + new_tokens_seen,
-            )
-
-    return train_loss
+    if rank == 0:
+        print("    step:", min(batch_idx, cfg.num_steps))
+        print("    loss:", current_loss)
+        # print("    LR:", current_lr)
+        print("    tokens seen:", total_tokens_seen)
+        print("    gradient norm:", current_gnorm)
+        # print("    reserved memory:", reserved_mem)
+        # print("    allocated memory:", allocated_mem)
+        print("    current step time:", current_step_time)
+        # print("    overall step time:", overall_step_time)
+        print("    current token per gpu per sec:", current_throughput)
+        # print("    overall token per gpu per sec:", overall_throughput)
+        # print(
+        #     "    overall token per day:",
+        #     int(new_tokens_seen / elapsed_time * 3600 * 24),
+        # )
+    return train_loss.item() if not torch.isnan(train_loss) else 100
 
 
 def setup():
@@ -184,7 +131,8 @@ def setup():
 
 def setup_environ_flags():
     os.environ["TORCH_SHOW_CPP_STACKTRACES"] = str(1)
-    os.environ["NCCL_ASYNC_ERROR_HANDLING"] = str(1)
+    os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = str(1)
+    # os.environ["NCCL_DEBUG"] = "INFO"
 
 
 def get_mixed_precision_policy(cfg, rank):
@@ -200,19 +148,19 @@ def get_mixed_precision_policy(cfg, rank):
         bf16_ready = verify_bfloat_support
         if bf16_ready:
             mixed_precision_policy = bfSixteen
-            if rank == 0:
-                print(f"bFloat16 enabled for mixed precision - using bfSixteen policy")
+            # if rank == 0:
+            #     print(f"bFloat16 enabled for mixed precision - using bfSixteen policy")
         else:
             mixed_precision_policy = fpSixteen
-            if rank == 0:
-                print(f"FP16 enabled")
+            # if rank == 0:
+            #     print(f"FP16 enabled")
     else:
         mixed_precision_policy = None
 
     return mixed_precision_policy
 
 
-def get_policies(cfg, rank, block):
+def get_policies(cfg, rank, block, model_cfg):
     """Get policies for mixed precision, wrapping, sharding, ac and param init function."""
 
     # mixed precision
@@ -230,15 +178,15 @@ def get_policies(cfg, rank, block):
         sharding_strategy = ShardingStrategy.NO_SHARD
     else:
         sharding_strategy = ShardingStrategy.FULL_SHARD
-    if rank == 0:
-        print(f"Sharding strategy = {cfg.sharding_strategy}")
+    # if rank == 0:
+    #     print(f"Sharding strategy = {cfg.sharding_strategy}")
 
     # ac handler
     apply_selective_ac = partial(apply_fsdp_checkpointing, block=block)
 
     # param init function
     if cfg.low_cpu_fsdp:
-        param_init_fn = param_init_function
+        param_init_fn = partial(param_init_function, cfg=model_cfg)
     else:
         param_init_fn = None
 

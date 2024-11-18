@@ -688,7 +688,7 @@ def test_scalable_partitioning():
 def test_scalable_shard_reload_scale():
     """
     As test_reload_epoch, but in this case we scale from 2 workers to 4 (complete 1/3 epoch, reload, finish without duplication).
-    Because logical shards won't all be the exact same length when checkpointed, we complete the epoch of the shortest of the new workers.
+    Because logical shards won't all be the exact same length when checkpointed, we stop just short of one epoch.
     """
     datasets = [
         basic_scalable(i, 2, max_chunksize=40, n_logical_shards=8) for i in range(2)
@@ -716,8 +716,7 @@ def test_scalable_shard_reload_scale():
 
     loaders2 = [iter(d) for d in datasets2]
 
-    print("Checking only", min(ndocs) * 3, "steps instead of full 50")
-    for j in range(min(ndocs) * 3):
+    for j in range(200 // 4 - 1):
         for i in range(4):
             out = next(loaders2[i])
             assert (

@@ -59,8 +59,6 @@ def get_model_config(model_variant):
             emb_dim=2048,
             nheads=16,
             nlayers=24,
-            hidden_grow_factor=3,
-            kvheads=4,
         )
     elif model_variant == "llama3_8b":
         llama_config = LLaMAConfig(
@@ -127,6 +125,39 @@ def get_model_config(model_variant):
             hidden_grow_factor=8 / 3,
             max_expected_seq_len=4096,
         )
+    elif model_variant == "llama3_3.2b_4k_mup_tiny":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=384,
+            nheads=3,
+            kvheads=1,
+            nlayers=24,
+            hidden_grow_factor=8 / 3,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
+    elif model_variant == "llama3_3.2b_4k_mup_small":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=768,
+            nheads=6,
+            kvheads=2,
+            nlayers=24,
+            hidden_grow_factor=8 / 3,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
+    elif model_variant == "llama3_3.2b_4k_mup_medium":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=1536,
+            nheads=12,
+            kvheads=4,
+            nlayers=24,
+            hidden_grow_factor=8 / 3,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
     elif model_variant == "llama3_70b":
         llama_config = LLaMAConfig(
             src_vocab_size=128256,
@@ -149,6 +180,39 @@ def get_model_config(model_variant):
             max_expected_seq_len=4096,
             rope_theta=500000.0,
         )
+    elif model_variant == "llama3_70b_4k_medium":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=3172,
+            nheads=24,
+            kvheads=3,
+            nlayers=80,
+            hidden_grow_factor=3.5,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
+    elif model_variant == "llama3_70b_4k_small":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=2048,
+            nheads=16,
+            kvheads=2,
+            nlayers=80,
+            hidden_grow_factor=3.5,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
+    elif model_variant == "llama3_70b_4k_tiny":
+        llama_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=1024,
+            nheads=8,
+            kvheads=1,
+            nlayers=80,
+            hidden_grow_factor=3.5,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
     elif model_variant == "llama3_194m_4k":
         llama_config = LLaMAConfig(
             src_vocab_size=128256,
@@ -162,3 +226,11 @@ def get_model_config(model_variant):
         raise ValueError(f"model variant {model_variant} not supported.")
 
     return llama_config
+
+
+def set_mup_from_cfg(job_cfg, model_cfg):
+    fields = {k: v for k, v in vars(job_cfg).items() if "mup" in k and v > 0}
+    for f in fields:
+        if hasattr(model_cfg, f):
+            setattr(model_cfg, f, fields[f])
+    return model_cfg
