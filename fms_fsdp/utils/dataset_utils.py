@@ -14,6 +14,7 @@ import torch.distributed
 import torch.distributed.tensor
 import torch.utils.data as data
 from transformers import AutoTokenizer  # type: ignore
+from torchdata.stateful_dataloader import StatefulDataLoader
 
 from fms_fsdp.utils.checkpointing_utils import get_latest
 
@@ -1514,5 +1515,68 @@ class LoaderMonitor():
         return state
         
         # TODO: split into list, send list into worker processes. Need actual dataloader interfacing for this!
+
+def __pop_dstate(state, device_mesh, placements):
+    dstate = state['_snapshot'].pop('_worker_snapshots')
+    dstate = [dstate[f'worker_{i}']['dataset_state'] for i in range(len(dstate))]
+    # Flip list[dict[tensor]] to dict[list[tensor]], and concat
+    dstate = {k:torch.cat([d[k] for d in dstate], 0) for k in dstate[0]}
+    # Construct dtensors from tensors
+    dstate = {
+        k: torch.distributed.tensor.DTensor.from_local(
+            v,
+            device_mesh,
+            placements,
+        )
+        for k, v in state.items()
+    }
+    return dstate
+
+
+def save_distributed_state_dict(loader: StatefulDataLoader, path: str, device_mesh=None, placements=None):
+    state = loader.state_dict()
+    dstate = __pop_dstate(state, device_mesh, placements)
+    # Write distributed state dict
+    writer = torch.distributed.checkpoint.FileSystemWriter(path)
+    torch.distributed.checkpoint.save(
+        dstate,
+        writer,
+    )
+    # Write nondistributed state dict
+    rank = loader.dataset.rank
+    torch.save(state, os.path.join(path, f"__nondist_cp_{rank}.pth"))
+
+def load_distributed_state_dict(loader: StatefulDataLoader, path: str, device_mesh=None, placements=None):
+    base = loader.state_dict()
+    nworkers = base['_snapshot']['_main_snapshot']['_num_workers']
+    rank = loader.dataset.rank
+    dbase = __pop_dstate(base, device_mesh, placements)
+    # Read nondistributed state dict
+    ckp_ws = 0 if not os.path.exists(path) else len([x for x in os.listdir(path) if '__nondist_cp_' in x])
+    # Check that number of loaders matches
+    if ckp_ws == loader.dataset.worldsize:
+        state = torch.load(os.path.join(f'__nondist_cp_{rank}.pth'))
+        # Check that number of workers matches
+        if nworkers != state['_snapshot']['_main_snapshot']['_num_workers']:
+            state = base
+    else:
+        state = base
+    # Read distributed state dict
+    reader = torch.distributed.checkpoint.FileSystemReader(path)
+    torch.distributed.checkpoint.load_state_dict(
+        dbase,
+        reader,
+    )
+    # Get local tensors from dtensors, and slice over workers
+    dstate = {k:v.to_local().chunk(nworkers) for k,v in dbase.items()}
+    # Flip dict[list[tensor]] to list[dict[tensor]]
+    dstate = [{k:v[i] for k,v in dstate.items()} for i in range(nworkers)]
+    # Re-insert worker states into loader state
+    for i in range(nworkers):
+        state['_snapshot']['_worker_snapshots'][f'worker_{i}']['dataset_state'] = dstate[i]
+    # Load into loader
+    loader.load_state_dict(state)
+
+
 
 

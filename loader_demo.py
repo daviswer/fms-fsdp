@@ -13,7 +13,7 @@ from fms_fsdp import config
 from fms_fsdp.utils.checkpointing_utils import Checkpointer
 from fms_fsdp.utils.config_utils import get_model_config, update_config
 from fms_fsdp.utils.dataloader_utils import get_data_loader, get_dummy_loader
-from fms_fsdp.utils.dataset_utils import LoaderMonitor
+from fms_fsdp.utils.dataset_utils import save_distributed_state_dict, load_distributed_state_dict
 from fms_fsdp.utils.train_utils import (
     get_policies,
     get_profiler,
@@ -63,7 +63,7 @@ def main(**kwargs):
         train_loader = get_data_loader(cfg, rank, world_size)
     else:
         train_loader = get_dummy_loader(cfg, rank, world_size)
-    monitor = LoaderMonitor()
+    # monitor = LoaderMonitor()
     if rank == 0:
         print("Datasets constructed!")
 
@@ -78,22 +78,28 @@ def main(**kwargs):
         if i==cfg.num_steps:
             break
 
-        x,y = monitor.collate(inp)
-
     if rank==0:
         print("Iteration complete")
 
-    monitor.save_state_dict(os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
+    save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
     if rank==0:
         print("DCP state saved")
 
-    reload = monitor.load_state_dict(os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
+    for i, inp in enumerate(train_loader):
+        if rank==0:
+            print(inp)
+        break
+
+    load_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
     if rank==0:
         print("DCP state loaded")
 
-        torch.save(reload, os.path.join(cfg.ckpt_save_path, "loader_dcp_state", "reload_0.pth"))
+    for i, inp in enumerate(train_loader):
+        if rank==0:
+            print(inp)
+        break
 
 
 
