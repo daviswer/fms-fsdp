@@ -1555,7 +1555,7 @@ def load_distributed_state_dict(loader: StatefulDataLoader, path: str, device_me
     ckp_ws = 0 if not os.path.exists(path) else len([x for x in os.listdir(path) if '__nondist_cp_' in x])
     # Check that number of loaders matches
     if ckp_ws == loader.dataset.worldsize:
-        state = torch.load(os.path.join(f'__nondist_cp_{rank}.pth'))
+        state = torch.load(os.path.join(path, f'__nondist_cp_{rank}.pth'))
         # Check that number of workers matches
         if nworkers != state['_snapshot']['_main_snapshot']['_num_workers']:
             state = base
