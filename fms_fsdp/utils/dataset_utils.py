@@ -1522,6 +1522,7 @@ def __pop_dstate(state, device_mesh, placements):
     # Flip list[dict[tensor]] to dict[list[tensor]], and concat
     dstate = {k:torch.cat([d[k] for d in dstate], 0) for k in dstate[0]}
     # Construct dtensors from tensors
+    print(v)
     dstate = {
         k: torch.distributed.tensor.DTensor.from_local(
             v,
