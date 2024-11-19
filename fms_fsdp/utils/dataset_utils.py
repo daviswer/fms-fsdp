@@ -1517,8 +1517,8 @@ class LoaderMonitor():
         # TODO: split into list, send list into worker processes. Need actual dataloader interfacing for this!
 
 def __pop_dstate(state, device_mesh, placements):
-    dstate = state['_snapshot'].pop('_worker_snapshots')
-    dstate = [dstate[f'worker_{i}']['dataset_state'] for i in range(len(dstate))]
+    dstate = state['_snapshot']['_worker_snapshots']
+    dstate = [dstate[f'worker_{i}'].pop('dataset_state') for i in range(len(dstate))]
     # Flip list[dict[tensor]] to dict[list[tensor]], and concat
     dstate = {k:torch.cat([d[k] for d in dstate], 0) for k in dstate[0]}
     # Construct dtensors from tensors
@@ -1545,6 +1545,7 @@ def save_distributed_state_dict(loader: StatefulDataLoader, path: str, device_me
     # Write nondistributed state dict
     rank = loader.dataset.rank
     torch.save(state, os.path.join(path, f"__nondist_cp_{rank}.pth"))
+
 
 def load_distributed_state_dict(loader: StatefulDataLoader, path: str, device_mesh=None, placements=None):
     base = loader.state_dict()
