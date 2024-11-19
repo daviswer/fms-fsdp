@@ -1523,7 +1523,7 @@ def __pop_dstate(state, device_mesh, placements):
     dstate = {k:torch.cat([d[k] for d in dstate], 0) for k in dstate[0]}
     # Construct dtensors from tensors
     for k, v in state.items():
-        if not isinstance(v, torch.tensor):
+        if not isinstance(v, torch.Tensor):
             print(k,v)
     dstate = {
         k: torch.distributed.tensor.DTensor.from_local(
