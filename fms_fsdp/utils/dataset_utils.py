@@ -1521,6 +1521,7 @@ def __pop_dstate(state, device_mesh, placements):
     dstate = [dstate[f'worker_{i}'].pop('dataset_state') for i in range(len(dstate))]
     # Flip list[dict[tensor]] to dict[list[tensor]], and concat
     dstate = {k:torch.cat([d[k] for d in dstate], 0) for k in dstate[0]}
+    print(dstate['SamplingDataset.states.StreamingDocDataset.lcg_state'])
     # Construct dtensors from tensors
     dstate = {
         k: torch.distributed.tensor.distribute_tensor(
@@ -1530,6 +1531,7 @@ def __pop_dstate(state, device_mesh, placements):
         )
         for k, v in dstate.items()
     }
+    time.sleep(1)
     return dstate
 
 
