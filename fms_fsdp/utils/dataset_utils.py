@@ -1524,7 +1524,7 @@ def __pop_dstate(state, device_mesh, placements):
     print(dstate['SamplingDataset.states.StreamingDocDataset.lcg_state'])
     # Construct dtensors from tensors
     dstate = {
-        k: torch.distributed.tensor.from_local(
+        k: torch.distributed.tensor.DTensor.from_local(
             v,
             device_mesh,
             placements,
