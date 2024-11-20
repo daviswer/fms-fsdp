@@ -179,7 +179,7 @@ def train(
 
 
 def setup():
-    dist.init_process_group("nccl", timeout=timedelta(seconds=60 * 60))
+    dist.init_process_group(timeout=timedelta(seconds=60 * 60))
 
 
 def setup_environ_flags():
