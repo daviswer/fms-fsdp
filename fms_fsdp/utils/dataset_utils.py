@@ -1521,6 +1521,7 @@ def __pop_dstate(state, device_mesh, placements):
     dstate = [dstate[f'worker_{i}'].pop('dataset_state') for i in range(len(dstate))]
     # Flip list[dict[tensor]] to dict[list[tensor]], and concat
     dstate = {k:torch.cat([d[k] for d in dstate], 0) for k in dstate[0]}
+    print(dstate['SamplingDataset.states.StreamingDocDataset.lcg_state'])
     # Construct dtensors from tensors
     dstate = {
         k: torch.distributed.tensor.DTensor.from_local(
@@ -1551,7 +1552,7 @@ def load_distributed_state_dict(loader: StatefulDataLoader, path: str, device_me
     base = loader.state_dict()
     nworkers = base['_snapshot']['_main_snapshot']['_num_workers']
     rank = loader.dataset.rank
-    dbase = __pop_dstate(base, device_mesh, placements)
+    dstate = __pop_dstate(base, device_mesh, placements)
     # Read nondistributed state dict
     ckp_ws = 0 if not os.path.exists(path) else len([x for x in os.listdir(path) if '__nondist_cp_' in x])
     # Check that number of loaders matches
@@ -1565,11 +1566,13 @@ def load_distributed_state_dict(loader: StatefulDataLoader, path: str, device_me
     # Read distributed state dict
     reader = torch.distributed.checkpoint.FileSystemReader(path)
     torch.distributed.checkpoint.load_state_dict(
-        dbase,
+        dstate,
         reader,
     )
     # Get local tensors from dtensors, and slice over workers
-    dstate = {k:v.to_local().chunk(nworkers) for k,v in dbase.items()}
+    dstate = {k:v.to_local() for k,v in dstate.items()}
+    print(dstate['SamplingDataset.states.StreamingDocDataset.lcg_state'])
+    dstate = {k:v.chunk(nworkers) for k,v in dstate.items()}
     # Flip dict[list[tensor]] to list[dict[tensor]]
     dstate = [{k:v[i] for k,v in dstate.items()} for i in range(nworkers)]
     # Re-insert worker states into loader state

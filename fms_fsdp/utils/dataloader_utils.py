@@ -154,7 +154,7 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         cfg.checkpoint_interval % cfg.num_workers == 0
     ), f"Workers per device {cfg.num_workers} must divide checkpoint interval {cfg.checkpoint_interval} evenly"
     return StatefulDataLoader(
-        data, num_workers=cfg.num_workers, batch_size=cfg.batch_size, prefetch_factor=1,
+        data, num_workers=cfg.num_workers, batch_size=cfg.batch_size,
     )
 
 
