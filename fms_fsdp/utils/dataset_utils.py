@@ -1536,7 +1536,7 @@ def __pop_dstate(state, device_mesh, placements):
 def save_distributed_state_dict(loader: StatefulDataLoader, path: str, device_mesh=None, placements=None):
     rank = loader.dataset.rank
     state = deepcopy(loader.state_dict())
-    dstate = __pop_dstate(state, device_mesh, placements)
+    dstate = __pop_dstate(state, device_mesh, [rank])  # placements)
     print(rank, dstate['SamplingDataset.states.StreamingDocDataset.lcg_state'].full_tensor())
     # Write distributed state dict
     writer = torch.distributed.checkpoint.FileSystemWriter(path)
@@ -1552,7 +1552,7 @@ def load_distributed_state_dict(loader: StatefulDataLoader, path: str, device_me
     base = loader.state_dict()
     nworkers = base['_snapshot']['_main_snapshot']['_num_workers']
     rank = loader.dataset.rank
-    dstate = __pop_dstate(base, device_mesh, placements)
+    dstate = __pop_dstate(base, device_mesh, [rank])  # placements)
     # Read nondistributed state dict
     ckp_ws = 0 if not os.path.exists(path) else len([x for x in os.listdir(path) if '__nondist_cp_' in x])
     # Check that number of loaders matches
