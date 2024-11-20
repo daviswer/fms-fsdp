@@ -81,8 +81,10 @@ def main(**kwargs):
                 print("Iteration complete")
             save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
         elif i==cfg.num_steps+1:
-            if rank==0:
-                print(inp[0])
+            for j in range(world_size):
+                if rank==j:
+                    print(j, inp[0])
+                time.sleep(1)
             break
 
     # for i in range(world_size):
@@ -103,8 +105,10 @@ def main(**kwargs):
     #     time.sleep(1)
 
     for i, inp in enumerate(train_loader):
-        if rank==0:
-            print(inp[0])
+        for j in range(world_size):
+            if rank==j:
+                print(j, inp[0])
+            time.sleep(1)
         break
 
 
