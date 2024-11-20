@@ -1546,6 +1546,7 @@ def save_distributed_state_dict(loader: StatefulDataLoader, path: str, device_me
     # Write nondistributed state dict
     rank = loader.dataset.rank
     torch.save(state, os.path.join(path, f"__nondist_cp_{rank}.pth"))
+    return state, dstate
 
 
 def load_distributed_state_dict(loader: StatefulDataLoader, path: str, device_mesh=None, placements=None):
@@ -1580,6 +1581,7 @@ def load_distributed_state_dict(loader: StatefulDataLoader, path: str, device_me
         state['_snapshot']['_worker_snapshots'][f'worker_{i}']['dataset_state'] = dstate[i]
     # Load into loader
     loader.load_state_dict(state)
+    return state
 
 
 
