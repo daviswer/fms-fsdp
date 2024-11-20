@@ -84,11 +84,11 @@ def main(**kwargs):
 
     save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
-    for i in range(world_size):
-        if rank==i:
-            # print("DCP state saved")
-            print(train_loader.state_dict())
-        time.sleep(1)
+    # for i in range(world_size):
+    #     if rank==i:
+    #         # print("DCP state saved")
+    #         print(train_loader.state_dict())
+    #     time.sleep(1)
     
     # for i, inp in enumerate(train_loader):
     #     if rank==0:
@@ -101,10 +101,10 @@ def main(**kwargs):
     if rank==0:
         print("DCP state loaded")
     
-    for i in range(world_size):
-        if rank==i:
-            print(s2)
-        time.sleep(1)
+    # for i in range(world_size):
+    #     if rank==i:
+    #         print(s2)
+    #     time.sleep(1)
 
     # for i, inp in enumerate(train_loader):
     #     if rank==0:
