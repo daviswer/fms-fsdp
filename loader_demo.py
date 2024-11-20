@@ -72,20 +72,20 @@ def main(**kwargs):
     mesh = dist.device_mesh.init_device_mesh("cpu", [world_size])
 
     # Train
-    # if rank == 0:
-    #     print(f"Training for {cfg.num_steps} steps")
+    if rank == 0:
+        print(f"Training for {cfg.num_steps} steps")
 
-    # for i, inp in enumerate(train_loader):
-    #     if i==cfg.num_steps:
-    #         if rank==0:
-    #             print("Iteration complete")
-    #         save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
-    #     elif i==cfg.num_steps+1:
-    #         for j in range(world_size):
-    #             if rank==j:
-    #                 print(j, inp[0])
-    #             time.sleep(1)
-    #         break
+    for i, inp in enumerate(train_loader):
+        if i==cfg.num_steps:
+            if rank==0:
+                print("Iteration complete")
+            save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
+        elif i==cfg.num_steps+1:
+            for j in range(world_size):
+                if rank==j:
+                    print(j, inp[0])
+                time.sleep(1)
+            break
 
     # for i in range(world_size):
     #     if rank==i:
