@@ -1521,7 +1521,6 @@ def __pop_dstate(state, device_mesh, placements):
     dstate = [dstate[f'worker_{i}'].pop('dataset_state') for i in range(len(dstate))]
     # Flip list[dict[tensor]] to dict[list[tensor]], and concat
     dstate = {k:torch.cat([d[k] for d in dstate], 0) for k in dstate[0]}
-    print(dstate['SamplingDataset.states.StreamingDocDataset.lcg_state'])
     # Construct dtensors from tensors
     dstate = {
         k: torch.distributed.tensor.DTensor.from_local(
@@ -1535,7 +1534,7 @@ def __pop_dstate(state, device_mesh, placements):
 
 
 def save_distributed_state_dict(loader: StatefulDataLoader, path: str, device_mesh=None, placements=None):
-    state = loader.state_dict()
+    state = deepcopy(loader.state_dict())
     dstate = __pop_dstate(state, device_mesh, placements)
     # Write distributed state dict
     writer = torch.distributed.checkpoint.FileSystemWriter(path)
@@ -1546,7 +1545,6 @@ def save_distributed_state_dict(loader: StatefulDataLoader, path: str, device_me
     # Write nondistributed state dict
     rank = loader.dataset.rank
     torch.save(state, os.path.join(path, f"__nondist_cp_{rank}.pth"))
-    return state, dstate
 
 
 def load_distributed_state_dict(loader: StatefulDataLoader, path: str, device_mesh=None, placements=None):
@@ -1572,7 +1570,6 @@ def load_distributed_state_dict(loader: StatefulDataLoader, path: str, device_me
     )
     # Get local tensors from dtensors, and slice over workers
     dstate = {k:v.to_local() for k,v in dstate.items()}
-    print(dstate['SamplingDataset.states.StreamingDocDataset.lcg_state'])
     dstate = {k:v.chunk(nworkers) for k,v in dstate.items()}
     # Flip dict[list[tensor]] to list[dict[tensor]]
     dstate = [{k:v[i] for k,v in dstate.items()} for i in range(nworkers)]
