@@ -91,6 +91,8 @@ def main(**kwargs):
             print(inp)
         break
 
+    
+    train_loader = get_data_loader(cfg, rank, world_size)
     load_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
     if rank==0:
