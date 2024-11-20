@@ -72,20 +72,24 @@ def main(**kwargs):
     mesh = dist.device_mesh.init_device_mesh("cpu", [world_size])
 
     # Train
-    # if rank == 0:
-    #     print(f"Training for {cfg.num_steps} steps")
+    if rank == 0:
+        print(f"Training for {cfg.num_steps} steps")
 
-    # for i, inp in enumerate(train_loader):
-    #     if i==cfg.num_steps:
-    #         if rank==0:
-    #             print("Iteration complete")
-    #         save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
-    #     elif i==cfg.num_steps+1:
-    #         for j in range(world_size):
-    #             if rank==j:
-    #                 print(j, inp[0])
-    #             time.sleep(1)
-    #         break
+    avoid = []
+    for i, inp in enumerate(train_loader):
+        if i<=cfg.num_steps:
+            avoid.append(inp[0])
+        if i==cfg.num_steps:
+            if rank==0:
+                print("Iteration complete")
+            save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
+        elif i==cfg.num_steps+1:
+            for j in range(world_size):
+                if rank==j:
+                    print(j, inp[0])
+                time.sleep(1)
+            break
+    avoid = torch.cat(avoid)
 
     # for i in range(world_size):
     #     if rank==i:
@@ -104,13 +108,20 @@ def main(**kwargs):
     #         print(s2)
     #     time.sleep(1)
 
+    include = []
     for i, inp in enumerate(train_loader):
-        for j in range(world_size):
-            if rank==j:
-                print(j, inp[0])
-            time.sleep(1)
-        break
+        if i<=20:
+            include.append(inp[0])
+        if i==0:
+            for j in range(world_size):
+                if rank==j:
+                    print(j, inp[0])
+                time.sleep(1)
+            break
+    include = torch.cat(include)
 
+    torch.save(avoid, os.path.join(cfg.ckpt_save_path, f'avoid_{rank}.pth'))
+    torch.save(include, os.path.join(cfg.ckpt_save_path, f'include_{rank}.pth'))
 
 
 
