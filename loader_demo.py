@@ -123,7 +123,6 @@ def main(**kwargs):
 
         # Perform avoid/include check on rank 0 only
         if rank==0:
-            torch.save(vals, os.path.join(cfg.ckpt_save_path, "vals.pth"))
             avoid = torch.load(os.path.join(cfg.ckpt_save_path, f'avoid_{rank}.pth'))
             include = torch.load(os.path.join(cfg.ckpt_save_path, f'include_{rank}.pth'))
 
@@ -133,17 +132,16 @@ def main(**kwargs):
 
             def _in(v, m):
                 # Returns whether a vector v of length d is a row of matrix m of size n*d
-                return m.sub(v[None]).abs().sum(1).sign().prod().bool().logical_not()
+                return m.sub(v[None]).abs().sum(1).sign().prod().bool().logical_not().item()
 
             # Avoid check
             for i,x in enumerate(avoid.split(1)):
-                assert not _in(x, vals)
+                assert not _in(x[0], vals), i
             print("Avoid check passed!")
 
             # Include check
             for i,x in enumerate(include.split(1)):
-                print(i)
-                assert _in(x, vals)
+                assert _in(x[0], vals), i
             print("Include check passed!")
 
     dist.barrier()
