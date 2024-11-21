@@ -47,44 +47,57 @@ def main(**kwargs):
     torch.cuda.empty_cache()
     setup_environ_flags()
 
-    # If checkpoint does not exist, do single-device iter and create it
+    mesh = dist.device_mesh.init_device_mesh("cpu", [world_size])
+    train_loader = get_data_loader(cfg, rank, world_size)
+
+    # If checkpoint does not exist, create it
     if not os.path.exists(cfg.ckpt_save_path) or len(os.listdir(cfg.ckpt_save_path)) == 0:
+        # Iterate, assemble values to exclude
         if rank==0:
-            mesh = dist.device_mesh.init_device_mesh("cpu", [1])
-            train_loader = get_data_loader(cfg, 0, 1)
-        
-            # Iterate, assemble values to exclude
             print(f"Training for {cfg.num_steps} steps")
 
-            avoid = []
-            for i, inp in enumerate(train_loader):
-                if i<=cfg.num_steps:
-                    avoid.append(inp[0])
-                if i==cfg.num_steps:
-                    print("Iteration complete")
-                    save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
-                    break
-            avoid = torch.cat(avoid)
+        avoid = []
+        for i, inp in enumerate(train_loader):
+            if i<=cfg.num_steps:
+                avoid.append(inp[0])
+            if i==cfg.num_steps:
+                print("Iteration complete")
+                save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
+                break
+        avoid = torch.cat(avoid)
+        # Get all vals onto each rank
+        avoid = torch.distributed.tensor.DTensor.from_local(
+            avoid,
+            mesh,
+            [torch.distributed.tensor.placement_types.Shard(0)],
+        ).full_tensor()
 
-            # Continue, assemble values to include
-            load_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
+        # Continue, assemble values to include
+        load_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
+        if rank==0:
             print("DCP state loaded")
 
-            include = []
-            for i, inp in enumerate(train_loader):
-                if i<=10:
-                    include.append(inp[0])
-            include = torch.cat(include)
+        include = []
+        for i, inp in enumerate(train_loader):
+            if i<=10:
+                include.append(inp[0])
+        include = torch.cat(include)
+        # Get all vals onto each rank
+        include = torch.distributed.tensor.DTensor.from_local(
+            include,
+            mesh,
+            [torch.distributed.tensor.placement_types.Shard(0)],
+        ).full_tensor()
 
+        if rank==0:
             torch.save(avoid, os.path.join(cfg.ckpt_save_path, f'avoid_{rank}.pth'))
             torch.save(include, os.path.join(cfg.ckpt_save_path, f'include_{rank}.pth'))
+            print("Generation complete! Please rerun to complete the check.")
 
     # If checkpoint does exist, load and take 100 steps.
     # Ensure avoid values are avoided, and include values are all included.
     else:
-        mesh = dist.device_mesh.init_device_mesh("cpu", [world_size])
-        train_loader = get_data_loader(cfg, rank, world_size)
         load_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
         vals = []
