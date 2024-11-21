@@ -54,7 +54,7 @@ def main(**kwargs):
     if not os.path.exists(cfg.ckpt_save_path) or len(os.listdir(cfg.ckpt_save_path)) == 0:
         # Iterate, assemble values to exclude
         if rank==0:
-            print(f"Training for {cfg.num_steps} steps")
+            print(f"No existing checkpoint. Training for {cfg.num_steps} steps.")
 
         avoid = []
         for i, inp in enumerate(train_loader):
@@ -98,6 +98,8 @@ def main(**kwargs):
     # If checkpoint does exist, load and take 100 steps.
     # Ensure avoid values are avoided, and include values are all included.
     else:
+        if rank==0:
+            print("Checkpoint detected!")
         load_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
         vals = []
