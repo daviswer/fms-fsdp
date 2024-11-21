@@ -47,93 +47,78 @@ def main(**kwargs):
     torch.cuda.empty_cache()
     setup_environ_flags()
 
-    # get policy
-    block = LLaMABlock
-    (
-        mixed_precision_policy,
-        wrapping_policy,
-        sharding_strategy_policy,
-        apply_selective_ac,
-        param_init_fn,
-    ) = get_policies(cfg, rank, block)
+    # If checkpoint does not exist, do single-device iter and create it
+    if not os.path.exists(cfg.ckpt_save_path) or len(os.listdir(cfg.ckpt_save_path)) == 0:
+        if rank==0:
+            mesh = dist.device_mesh.init_device_mesh("cpu", [1])
+            train_loader = get_data_loader(cfg, 0, 1)
+        
+            # Iterate, assemble values to exclude
+            print(f"Training for {cfg.num_steps} steps")
 
-    # get data loader
-    if rank == 0:
-        print("Constructing datasets...")
-    if not cfg.use_dummy_dataset:
-        train_loader = get_data_loader(cfg, rank, world_size)
+            avoid = []
+            for i, inp in enumerate(train_loader):
+                if i<=cfg.num_steps:
+                    avoid.append(inp[0])
+                if i==cfg.num_steps:
+                    print("Iteration complete")
+                    save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
+                    break
+            avoid = torch.cat(avoid)
+
+            # Continue, assemble values to include
+            load_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
+
+            print("DCP state loaded")
+
+            include = []
+            for i, inp in enumerate(train_loader):
+                if i<=10:
+                    include.append(inp[0])
+            include = torch.cat(include)
+
+            torch.save(avoid, os.path.join(cfg.ckpt_save_path, f'avoid_{rank}.pth'))
+            torch.save(include, os.path.join(cfg.ckpt_save_path, f'include_{rank}.pth'))
+
+    # If checkpoint does exist, load and take 100 steps.
+    # Ensure avoid values are avoided, and include values are all included.
     else:
-        train_loader = get_dummy_loader(cfg, rank, world_size)
-    # monitor = LoaderMonitor()
-    if rank == 0:
-        print("Datasets constructed!")
+        mesh = dist.device_mesh.init_device_mesh("cpu", [world_size])
+        train_loader = get_data_loader(cfg, rank, world_size)
+        load_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
-    # Construct device mesh
-    mesh = dist.device_mesh.init_device_mesh("cpu", [world_size])
+        vals = []
+        for i, inp in enumerate(train_loader):
+            if i==100:
+                break
+            vals.append(inp[0])
+        vals = torch.cat(vals)
 
-    # Train
-    if rank == 0:
-        print(f"Training for {cfg.num_steps} steps")
+        # Get all vals onto each rank
+        vals = torch.distributed.tensor.DTensor.from_local(
+            vals,
+            mesh,
+            [torch.distributed.tensor.placement_types.Shard(0)],
+        ).full_tensor()
 
-    avoid = []
-    for i, inp in enumerate(train_loader):
-        if i<=cfg.num_steps:
-            avoid.append(inp[0])
-        if i==cfg.num_steps:
-            if rank==0:
-                print("Iteration complete")
-            save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
-        elif i==cfg.num_steps+1:
-            for j in range(world_size):
-                if rank==j:
-                    print(j, inp[0])
-                time.sleep(1)
-            break
-    avoid = torch.cat(avoid)
+        # Perform avoid/include check on rank 0 only
+        if rank==0:
+            avoid = torch.load(os.path.join(cfg.ckpt_save_path, f'avoid_{rank}.pth'))
+            include = torch.load(os.path.join(cfg.ckpt_save_path, f'include_{rank}.pth'))
 
-    # for i in range(world_size):
-    #     if rank==i:
-    #         # print("DCP state saved")
-    #         print(train_loader.state_dict())
-    #     time.sleep(1)
-    
-    # train_loader = get_data_loader(cfg, rank, world_size)
-    s2 = load_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
+            def _in(v, m):
+                # Returns whether a vector v of length d is a row of matrix m of size n*d
+                return m.sub(v[None]).abs().sum(1).prod().bool()
 
-    if rank==0:
-        print("DCP state loaded")
-    
-    # for i in range(world_size):
-    #     if rank==i:
-    #         print(s2)
-    #     time.sleep(1)
+            # Avoid check
+            for a in avoid.split(1):
+                assert not _in(a, vals)
 
-    include = []
-    for i, inp in enumerate(train_loader):
-        if i<=20:
-            include.append(inp[0])
-        if i==0:
-            for j in range(world_size):
-                if rank==j:
-                    print(j, inp[0])
-                time.sleep(1)
-            break
-    include = torch.cat(include)
+            # Include check
+            for i in include.split(1):
+                assert _in(i, vals)
 
-    torch.save(avoid, os.path.join(cfg.ckpt_save_path, f'avoid_{rank}.pth'))
-    torch.save(include, os.path.join(cfg.ckpt_save_path, f'include_{rank}.pth'))
-
-
-
-
-
-
-
-
-
-
-
-
+            print("Checks passed!")
 
     dist.barrier()
     dist.destroy_process_group()
