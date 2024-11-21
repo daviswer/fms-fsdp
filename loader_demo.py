@@ -61,7 +61,8 @@ def main(**kwargs):
             if i<=cfg.num_steps:
                 avoid.append(inp[0])
             if i==cfg.num_steps:
-                print("Iteration complete")
+                if rank==0:
+                    print("Iteration complete!")
                 save_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
                 break
         avoid = torch.cat(avoid)
@@ -83,6 +84,8 @@ def main(**kwargs):
             if i<=10:
                 include.append(inp[0])
         include = torch.cat(include)
+        if rank==0:
+            print("Iteration round 2 complete!")
         # Get all vals onto each rank
         include = torch.distributed.tensor.DTensor.from_local(
             include,
