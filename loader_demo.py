@@ -77,12 +77,14 @@ def main(**kwargs):
         load_distributed_state_dict(train_loader, os.path.join(cfg.ckpt_save_path, "loader_dcp_state"), mesh)
 
         if rank==0:
-            print("DCP state loaded")
+            print("DCP state loaded!")
 
         include = []
         for i, inp in enumerate(train_loader):
             if i<=10:
                 include.append(inp[0])
+            else:
+                break
         include = torch.cat(include)
         if rank==0:
             print("Iteration round 2 complete!")
