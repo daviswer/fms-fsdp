@@ -123,6 +123,7 @@ def main(**kwargs):
 
         # Perform avoid/include check on rank 0 only
         if rank==0:
+            torch.save(vals, os.path.join(cfg.ckpt_save_path, "vals.pth"))
             avoid = torch.load(os.path.join(cfg.ckpt_save_path, f'avoid_{rank}.pth'))
             include = torch.load(os.path.join(cfg.ckpt_save_path, f'include_{rank}.pth'))
 
@@ -136,7 +137,6 @@ def main(**kwargs):
 
             # Avoid check
             for i,x in enumerate(avoid.split(1)):
-                print(i)
                 assert not _in(x, vals)
             print("Avoid check passed!")
 
