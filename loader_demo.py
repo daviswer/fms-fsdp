@@ -98,7 +98,7 @@ def main(**kwargs):
         if rank==0:
             torch.save(avoid, os.path.join(cfg.ckpt_save_path, f'avoid_{rank}.pth'))
             torch.save(include, os.path.join(cfg.ckpt_save_path, f'include_{rank}.pth'))
-            print("Generation complete! Please rerun to complete the check.")
+            print("Generation complete! Please rerun (with different world size / workers if desired) to complete the check.")
 
     # If checkpoint does exist, load and take 100 steps.
     # Ensure avoid values are avoided, and include values are all included.
@@ -125,6 +125,10 @@ def main(**kwargs):
         if rank==0:
             avoid = torch.load(os.path.join(cfg.ckpt_save_path, f'avoid_{rank}.pth'))
             include = torch.load(os.path.join(cfg.ckpt_save_path, f'include_{rank}.pth'))
+
+            print("Avoid shape:", avoid.shape)
+            print("Include shape:", include.shape)
+            print("Vals shape:", vals.shape)
 
             def _in(v, m):
                 # Returns whether a vector v of length d is a row of matrix m of size n*d
