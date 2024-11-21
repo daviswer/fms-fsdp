@@ -132,7 +132,7 @@ def main(**kwargs):
 
             def _in(v, m):
                 # Returns whether a vector v of length d is a row of matrix m of size n*d
-                return m.sub(v[None]).abs().sum(1).prod().bool()
+                return m.sub(v[None]).abs().sum(1).sign().prod().bool().logical_not()
 
             # Avoid check
             for i,x in enumerate(avoid.split(1)):
