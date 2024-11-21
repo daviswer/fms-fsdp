@@ -135,14 +135,16 @@ def main(**kwargs):
                 return m.sub(v[None]).abs().sum(1).prod().bool()
 
             # Avoid check
-            for a in avoid.split(1):
-                assert not _in(a, vals)
+            for i,x in enumerate(avoid.split(1)):
+                print(i)
+                assert not _in(x, vals)
+            print("Avoid check passed!")
 
             # Include check
-            for i in include.split(1):
-                assert _in(i, vals)
-
-            print("Checks passed!")
+            for i,x in enumerate(include.split(1)):
+                print(i)
+                assert _in(x, vals)
+            print("Include check passed!")
 
     dist.barrier()
     dist.destroy_process_group()
