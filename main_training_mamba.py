@@ -145,7 +145,7 @@ def main(**kwargs):
             * (1 + math.cos(min(x, cfg.num_steps) / cfg.num_steps * math.pi)),
         )
 
-    scheduler = LambdaLR(optimizer, lambda x: schedule(x + start_step))
+    scheduler = LambdaLR(optimizer, lambda x: 1) #schedule(x + start_step))
 
     # profiler
     profiler = get_profiler(cfg, rank)
