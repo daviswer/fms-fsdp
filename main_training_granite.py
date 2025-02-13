@@ -62,8 +62,7 @@ def main(**kwargs):
         with torch.device("meta"):
             model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path)
     else:
-        model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path)
-        model.reset_parameters()
+        model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path, device_map="cpu")
 
     if rank == 0:
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
