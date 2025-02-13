@@ -85,7 +85,7 @@ def train(
         label = label.to(local_rank)
 
         optimizer.zero_grad()
-        output = model(input, labels=label)
+        output = model(input, labels=label.long())
         # output = output.logits if hasattr(output, "logits") else output
         # ce_loss = torch.nn.CrossEntropyLoss()
         # loss = ce_loss(output.view(-1, output.size(-1)), label.view(-1).long())
