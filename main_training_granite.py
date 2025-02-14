@@ -89,6 +89,7 @@ def main(**kwargs):
         limit_all_gathers=True,
         param_init_fn=param_init_fn,
     )
+    model.to(local_rank)
     # we need this post-fsdp call to avoid graph break with torch.compile, until we figure out a better solution.
     # model.rot_emb.compute_freqs_cis(
     #     torch.device("cuda", torch.cuda.current_device()),
