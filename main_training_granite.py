@@ -99,7 +99,7 @@ def main(**kwargs):
     test = torch.tensor([0, 1318, 26718, 438, 10087, 3301], device=local_rank)[None]
     for _ in range(10):
         with torch.no_grad():
-            out = model(input, use_cache=False, past_key_values=None).logits
+            out = model(test, use_cache=False, past_key_values=None).logits
             if rank == 0:
                 print(test[0], " --> ", out.argmax(-1)[0])
             test = torch.cat([test, out[:,-1].argmax(-1)[None]], dim=1)
