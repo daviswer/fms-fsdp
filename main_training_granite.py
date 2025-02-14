@@ -60,9 +60,9 @@ def main(**kwargs):
     # llama_config = get_model_config(cfg.model_variant)
     if cfg.low_cpu_fsdp:
         with torch.device("meta"):
-            model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path)
+            model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path, use_padding_free_transformer=True)
     else:
-        model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path, device_map="cpu")
+        model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path, device_map="cpu", use_padding_free_transformer=True)
 
     if rank == 0:
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
