@@ -86,7 +86,7 @@ def train(
 
         optimizer.zero_grad()
         output = model(input, labels=label.long(), use_cache=False, past_key_values=None)
-        if local_rank == 0 and batch_idx == 0:
+        if local_rank == 0 and batch_idx == 1:
             torch.save([input.cpu(), label.cpu(), output.logits.cpu()], "/gpfs/davis/temp.pth")
         # output = output.logits if hasattr(output, "logits") else output
         # ce_loss = torch.nn.CrossEntropyLoss()
