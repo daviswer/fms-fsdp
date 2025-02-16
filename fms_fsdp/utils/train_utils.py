@@ -78,16 +78,13 @@ def train(
     start = time.time()
     loop_start = time.time()
     train_loss = -1
-    for batch_idx, (input, label) in enumerate(train_loader, start=start_step + 1):
+    for batch_idx, input in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
         input = input.to(local_rank)
-        label = label.to(local_rank)
 
         optimizer.zero_grad()
-        output = model(input, labels=label.long(), use_cache=False, past_key_values=None)
-        if local_rank == 0 and batch_idx == 1:
-            torch.save([input.cpu(), label.cpu(), output.logits.cpu()], "/gpfs/davis/temp.pth")
+        output = model(input, labels=input.long(), use_cache=False, past_key_values=None)
         # output = output.logits if hasattr(output, "logits") else output
         # ce_loss = torch.nn.CrossEntropyLoss()
         # loss = ce_loss(output.view(-1, output.size(-1)), label.view(-1).long())
