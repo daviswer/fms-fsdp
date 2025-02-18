@@ -25,6 +25,7 @@ def main(
     
     print("Converting to HF model..")
     # hf_model = convert_to_hf(model, model_variant, is_old_fms)
+    os.makedirs(save_path, exist_ok=True)
     model.save_pretrained(save_path)
 
     print("Copying tokenizer...")
