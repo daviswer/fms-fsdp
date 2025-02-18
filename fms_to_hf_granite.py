@@ -1,5 +1,6 @@
 import fire
 import torch
+import os
 import dolomite_engine.hf_models as hf_models
 from torch.distributed._shard.checkpoint import FileSystemReader, load_state_dict
 
@@ -10,20 +11,18 @@ def main(
     model = hf_models.MoEDolomiteForCausalLM.from_pretrained(model_path, device_map="cpu")
 
     print(f"Reading state dict from {load_path}")
-    if not compiled:
-        state_dict = {"model_state": model.state_dict()}
-    else:
-        state_dict = {"model_state": {"_orig_mod": model.state_dict()}}
-    load_state_dict(
-        state_dict=state_dict, storage_reader=FileSystemReader(load_path), no_dist=True
-    )
+    state_dict = {"model_state": torch.load(os.path.join(load_path, "consolidated.00.pth"))}
+    # if not compiled:
+    #     state_dict = {"model_state": model.state_dict()}
+    # else:
+    #     state_dict = {"model_state": {"_orig_mod": model.state_dict()}}
+    # load_state_dict(
+    #     state_dict=state_dict, storage_reader=FileSystemReader(load_path), no_dist=True
+    # )
 
     print("Loading state dict into the model...")
-    if not compiled:
-        model.load_state_dict(state_dict["model_state"])
-    else:
-        model.load_state_dict(state_dict["model_state"]["_orig_mod"])
-
+    model.load_state_dict(state_dict["model_state"])
+    
     print("Converting to HF model..")
     # hf_model = convert_to_hf(model, model_variant, is_old_fms)
     model.save_pretrained(save_path)
