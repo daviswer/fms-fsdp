@@ -5,7 +5,7 @@ import dolomite_engine.hf_models as hf_models
 from torch.distributed._shard.checkpoint import FileSystemReader, load_state_dict
 
 def main(
-    model_path, compiled, is_old_fms, load_path, save_path, tokenizer_name_or_path
+    model_path, load_path, save_path
 ):
     print("Initializing model...")
     model = hf_models.MoEDolomiteForCausalLM.from_pretrained(model_path, device_map="cpu")
