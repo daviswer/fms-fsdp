@@ -11,7 +11,7 @@ def main(
     model = hf_models.MoEDolomiteForCausalLM.from_pretrained(model_path, device_map="cpu")
 
     print(f"Reading state dict from {load_path}")
-    state_dict = {"model_state": torch.load(os.path.join(load_path, "consolidated.00.pth"))}
+    state_dict = torch.load(os.path.join(load_path, "consolidated.00.pth"))
     # if not compiled:
     #     state_dict = {"model_state": model.state_dict()}
     # else:
