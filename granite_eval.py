@@ -10,13 +10,7 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 import dolomite_engine.hf_models as hf_models
 from dolomite_engine.hf_models.models.moe_dolomite.layer import MoEDolomiteBlock
-from fms_fsdp.utils.train_utils import (
-    get_policies,
-    get_profiler,
-    setup,
-    setup_environ_flags,
-    train,
-)
+
 from fms.utils import evaluation, tokenizers
 
 
@@ -128,32 +122,7 @@ else:
     else:
         distr_param = None
 
-class Config():
-    low_cpu_fsdp = False
-    sharding_strategy = "fsdp"
-    mixed_predixion = False  # default type takes care of this
-
-block = MoEDolomiteBlock
-(
-    mixed_precision_policy,
-    wrapping_policy,
-    sharding_strategy_policy,
-    apply_selective_ac,
-    param_init_fn,
-) = get_policies(Config(), local_rank, block)
-
-model = hf_models.MoEDolomiteForCausalLM.from_pretrained(args.model_path, device_map="cpu")
-model = FSDP(
-        model,
-        auto_wrap_policy=wrapping_policy,
-        mixed_precision=mixed_precision_policy,
-        sharding_strategy=sharding_strategy_policy,
-        use_orig_params=False,
-        device_id=torch.cuda.current_device(),
-        limit_all_gathers=True,
-        param_init_fn=param_init_fn,
-    )
-model.to(local_rank)
+model = hf_models.MoEDolomiteForCausalLM.from_pretrained(args.model_path, device_map=local_rank)
 tokenizer = tokenizers.get_tokenizer(args.tokenizer)
 model.eval()
 torch.set_grad_enabled(False)
