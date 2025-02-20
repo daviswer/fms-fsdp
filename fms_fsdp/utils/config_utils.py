@@ -188,7 +188,10 @@ def get_model_config(model_variant):
             "d_intermediate": 14336,
             "n_layer": 32,
             "vocab_size": 128256,
-            "ssm_cfg": {"layer": "Mamba2"},
+            "ssm_cfg": {
+                "layer": "Mamba2",
+                "scale_factor": 4,
+            },
             "attn_layer_idx": [9, 18, 27],
             "attn_cfg": {
                 "causal": True,
