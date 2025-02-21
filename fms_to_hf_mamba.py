@@ -12,7 +12,7 @@ def main(model_variant, load_path, save_path, tokenizer_name_or_path, reverse):
     mamba_config = MambaConfig(**config_data)
     model = MambaLMHeadModel(mamba_config)
     
-    if not reverse:
+    if not bool(reverse):
         print(f"Reading state dict from {load_path}")
         state_dict = {"model_state": model.state_dict()}
         load_state_dict(
