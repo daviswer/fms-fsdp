@@ -2,6 +2,7 @@ import fire
 from mamba_ssm.models.config_mamba import MambaConfig
 from mamba_ssm.models.mixer_seq_simple import MambaLMHeadModel
 from torch.distributed._shard.checkpoint import FileSystemReader, load_state_dict
+from transformers import AutoModelForCausalLM
 
 from fms_fsdp.utils.config_utils import get_model_config
 
@@ -32,7 +33,7 @@ def main(model_variant, load_path, save_path, tokenizer_name_or_path, reverse):
         tokenizer.save_pretrained(save_path)
     else:
         print(f"Reading state dict from {load_path}")
-        model = MambaLMHeadModel.from_pretrained(load_path)
+        model = AutoModlForCausalLM.from_pretrained(load_path)
 
         print(f"Saving model to FMS-compatible format...")
         state = model.state_dict()
