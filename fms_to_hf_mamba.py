@@ -40,7 +40,7 @@ def main(model_variant, load_path, save_path, tokenizer_name_or_path, reverse):
         print(f"Saving model to FMS-compatible format...")
         state = model.state_dict()
         state = {"model_state":state, "step":0}
-        torch.save(os.path.join(save_path, "consolidated.00.pth"))
+        torch.save(state, os.path.join(save_path, "consolidated.00.pth"))
     
     print(f"Model saving at {save_path}")
         
