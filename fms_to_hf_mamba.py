@@ -1,4 +1,5 @@
 import fire
+import os
 import torch
 from mamba_ssm.models.config_mamba import MambaConfig
 from mamba_ssm.models.mixer_seq_simple import MambaLMHeadModel
