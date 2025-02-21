@@ -33,7 +33,7 @@ def main(model_variant, load_path, save_path, tokenizer_name_or_path, reverse):
         tokenizer.save_pretrained(save_path)
     else:
         print(f"Reading state dict from {load_path}")
-        model = AutoModlForCausalLM.from_pretrained(load_path)
+        model = AutoModelForCausalLM.from_pretrained(load_path)
 
         print(f"Saving model to FMS-compatible format...")
         state = model.state_dict()
