@@ -8,11 +8,11 @@ from fms_fsdp.utils.config_utils import get_model_config
 
 def main(model_variant, load_path, save_path, tokenizer_name_or_path, reverse):
     print("Initializing model...")
-    config_data = get_model_config(model_variant)
-    mamba_config = MambaConfig(**config_data)
-    model = MambaLMHeadModel(mamba_config)
     
     if not bool(reverse):
+        config_data = get_model_config(model_variant)
+        mamba_config = MambaConfig(**config_data)
+        model = MambaLMHeadModel(mamba_config)
         print(f"Reading state dict from {load_path}")
         state_dict = {"model_state": model.state_dict()}
         load_state_dict(
@@ -32,7 +32,7 @@ def main(model_variant, load_path, save_path, tokenizer_name_or_path, reverse):
         tokenizer.save_pretrained(save_path)
     else:
         print(f"Reading state dict from {load_path}")
-        model.load_pretrained(load_path)
+        model = MambaLMHeadModel.from_pretrained(load_path)
 
         print(f"Saving model to FMS-compatible format...")
         state = model.state_dict()
