@@ -8,7 +8,7 @@ def main(
     model_path, load_path, save_path
 ):
     print("Initializing model...")
-    model = hf_models.MoEDolomiteForCausalLM.from_pretrained(model_path, device_map="cpu")
+    model = hf_models.MoEDolomiteForCausalLM.from_pretrained(model_path, device_map="cpu").bfloat16()
 
     print(f"Reading state dict from {load_path}")
     state_dict = torch.load(os.path.join(load_path, "consolidated.00.pth"))
