@@ -9,7 +9,7 @@ from torch import distributed as dist
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 import dolomite_engine.hf_models as hf_models
-from dolomite_engine.hf_models.models.moe_dolomite.layer import MoEDolomiteBlock
+from transformers import AutoModelForCausalLM
 
 from fms.utils import evaluation, tokenizers
 
@@ -122,7 +122,8 @@ else:
     else:
         distr_param = None
 
-model = hf_models.MoEDolomiteForCausalLM.from_pretrained(args.model_path, device_map=local_rank)
+# model = hf_models.MoEDolomiteForCausalLM.from_pretrained(args.model_path, device_map=local_rank)
+model = AutoModelForCausalLM.from_pretrained(args.model_path, device_map=local_rank)
 tokenizer = tokenizers.get_tokenizer(args.tokenizer)
 model.eval()
 torch.set_grad_enabled(False)
