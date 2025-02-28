@@ -59,7 +59,7 @@ def main(**kwargs):
     # get granite model
     # llama_config = get_model_config(cfg.model_variant)
     if cfg.low_cpu_fsdp:
-        param_init_fn=(lambda module: module.to_empty(device=torch.device("cuda"), recurse=False))  # if rank != 0 else lambda module: module.to(device=torch.device("cuda"))
+        param_init_fn=(lambda module: module.to_empty(device=torch.device("cuda"), recurse=False)) if rank != 0 else None
         model_cfg = hf_models.MoEDolomiteConfig.from_pretrained(cfg.ckpt_load_path)
         if rank == 0:
             model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path, device_map="cpu")
@@ -92,7 +92,7 @@ def main(**kwargs):
         use_orig_params=cfg.use_torch_compile,
         device_id=torch.cuda.current_device(),
         limit_all_gathers=True,
-        sync_module_states=True,
+        sync_module_states=False,
         param_init_fn=param_init_fn,
     )
     # model.to(local_rank)
