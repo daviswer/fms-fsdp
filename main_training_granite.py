@@ -89,10 +89,10 @@ def main(**kwargs):
         auto_wrap_policy=wrapping_policy,
         mixed_precision=mixed_precision_policy,
         sharding_strategy=sharding_strategy_policy,
-        use_orig_params=True,  # cfg.use_torch_compile,
+        use_orig_params=cfg.use_torch_compile,
         device_id=torch.cuda.current_device(),
         limit_all_gathers=True,
-        sync_module_states=True,
+        sync_module_states=False,
         param_init_fn=param_init_fn,
     )
     # model.to(local_rank)
