@@ -61,7 +61,7 @@ def main(**kwargs):
     if cfg.low_cpu_fsdp:
         param_init_fn=(lambda module: module.to_empty(device=torch.device("cuda"), recurse=False))  # if rank != 0 else lambda module: module.to(device=torch.device("cuda"))
         model_cfg = hf_models.MoEDolomiteConfig.from_pretrained(cfg.ckpt_load_path)
-        if False:  # rank == 0:
+        if rank == 0:
             model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path, device_map="cpu")
         else:
             with torch.device("meta"):
