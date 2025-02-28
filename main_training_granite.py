@@ -63,6 +63,7 @@ def main(**kwargs):
         model_cfg = hf_models.MoEDolomiteConfig.from_pretrained(cfg.ckpt_load_path)
         if rank == 0:
             model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path, device_map="cpu")
+            print(model)
         else:
             with torch.device("meta"):
                 model = hf_models.MoEDolomiteForCausalLM(model_cfg)
