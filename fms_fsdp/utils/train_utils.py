@@ -87,7 +87,7 @@ def train(
         optimizer.zero_grad()
         output = model(input)
         output = output.logits if hasattr(output, "logits") else output
-        if batch_idx==0 and rank==0:
+        if batch_idx==1 and rank==0:
             print("SAVING")
             torch.save(output.detach().cpu(), os.path.join(cfg.ckpt_save_path, "logits.pth"))
         ce_loss = torch.nn.CrossEntropyLoss()
