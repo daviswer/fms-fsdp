@@ -68,7 +68,7 @@ def main(**kwargs):
             with torch.device("meta"):
                 model = hf_models.MoEDolomiteForCausalLM(model_cfg, moe_implementation="scattermoe")
     else:
-        model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path, device_map="cpu", moe_implementation="scattermoe")
+        model = hf_models.MoEDolomiteForCausalLM.from_pretrained(cfg.ckpt_load_path, device_map="cpu", moe_implementation="eager")
 
     if rank == 0:
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
