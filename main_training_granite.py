@@ -93,8 +93,7 @@ def main(**kwargs):
         use_orig_params=cfg.use_torch_compile,
         device_id=torch.cuda.current_device(),
         limit_all_gathers=True,
-        sync_module_states=True,
-        param_init_fn=param_init_fn,
+        param_init_fn=None,
     )
     if rank == 0:
         print(model)
