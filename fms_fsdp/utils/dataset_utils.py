@@ -942,6 +942,8 @@ class StreamingDocDataset(_StatefulDataset):
                 for root, dirs, files in os.walk(datapath, topdown=False)
                 for name in files
                 if self.filehandler.is_legal(os.path.join(root, name))
+                and os.path.getsize(os.path.join(root, name)) > 1_000_000
+                # 1mb minimum file size to prevent empty files
             ]
             shards.sort()  # Ensure consistent sharding across machines
             start_frag = (self.rank * self.worldsize * len(shards)) // self.worldsize
@@ -1001,8 +1003,6 @@ class StreamingDocDataset(_StatefulDataset):
 
             # Add shard entries to self.docset
             doccount = 0
-            if self.dataset == "ieee_en":
-                print(self.rank, docset)
             for shardid in docset:
                 min_d = docset[shardid][0]
                 max_d = docset[shardid][1]
