@@ -2,6 +2,7 @@ import math
 import os
 from pathlib import Path
 
+import logging
 import fire
 import torch
 import torch.optim as optim
@@ -29,6 +30,8 @@ def main(**kwargs):
     # get configs
     cfg = config.train_config()
     update_config(cfg, **kwargs)
+    if config.verbose:
+        logging.basicConfig(level=logging.INFO)
 
     # ensure reproducibility
     torch.cuda.manual_seed(cfg.seed)
