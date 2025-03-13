@@ -1001,6 +1001,8 @@ class StreamingDocDataset(_StatefulDataset):
 
             # Add shard entries to self.docset
             doccount = 0
+            if self.dataset == "ieee_en":
+                print(self.rank, docset)
             for shardid in docset:
                 min_d = docset[shardid][0]
                 max_d = docset[shardid][1]
