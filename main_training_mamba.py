@@ -30,7 +30,7 @@ def main(**kwargs):
     # get configs
     cfg = config.train_config()
     update_config(cfg, **kwargs)
-    if config.verbose:
+    if cfg.verbose:
         logging.basicConfig(level=logging.INFO)
 
     # ensure reproducibility
