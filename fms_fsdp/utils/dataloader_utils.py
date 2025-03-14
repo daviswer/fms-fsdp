@@ -57,7 +57,7 @@ def get_dummy_loader(cfg, rank, world_size):
     return torch.utils.data.DataLoader(data, batch_size=cfg.batch_size)
 
 
-def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
+def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
     """
     Pytorch dataloader for stateful, distributed, and rescalable causal language model (CLM) training.
     Assumes underlying data is sequences of integer values.
@@ -74,6 +74,14 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         Any task-specific postprocessing to apply before handing over data. Steps will apply in
         the order provided by the user. For CLM training, use postprocess=[causal_lm].
     """
+
+    do_cp = False
+    if dp_degree != world_size:
+        do_cp = True
+        cp_worldsize = world_size // dp_degree
+        cp_rank = rank % cp_worldsize
+        world_size = dp_degree
+        rank = rank // cp_worldsize
 
     datasets, weights, cols = parse_data_args(cfg.datasets, cfg.weights, cfg.col_name)
 
@@ -132,6 +140,12 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
     data = PreprocessDataset(data, torch.IntTensor)
     for p in postprocess:
         data = PreprocessDataset(data, p)
+
+    # Apply CP chunking if using CP
+    if do_cp:
+        def chunk(x):
+            return x[(cp_rank*x.size(0))//cp_worldsize : ((cp_rank+1)*x.size(0))//cp_worldsize]
+        data = PreprocessDataset(data, lambda x: (chunk(x[0]), chunk(x[1])))
 
     # Enable auto-saving
     data = CheckpointDataset(

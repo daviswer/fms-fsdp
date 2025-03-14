@@ -10,6 +10,7 @@ from mamba_ssm.models.config_mamba import MambaConfig
 from mamba_ssm.models.mixer_seq_simple import MambaLMHeadModel
 from mamba_ssm.modules.block import Block
 from torch import distributed as dist
+from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.optim.lr_scheduler import LambdaLR
 
@@ -64,10 +65,50 @@ def main(**kwargs):
         param_init_fn,
     ) = get_policies(cfg, rank, block)
 
+    # Meshes for FSDP and CP. NOTE: @goon - Getting hangs and/or OOMs if I don't explicitly specify
+    # the FSDP mesh when using 4+ nodes with HSDP + in-node-CP.
+    def get_1D_world_mesh(world_size: int) -> DeviceMesh:
+        mesh = dist.device_mesh.init_device_mesh("cuda", (world_size,))
+        return mesh
+
+    def get_2D_world_mesh(world_size: int) -> DeviceMesh:
+        num_gpu_per_node = torch.cuda.device_count()
+        assert world_size % num_gpu_per_node == 0
+        mesh = dist.device_mesh.init_device_mesh(
+            "cuda",
+            (world_size // num_gpu_per_node, num_gpu_per_node),
+            mesh_dim_names=("inter_node", "intra_node"),
+        )
+        return mesh
+
+    if cfg.cp:
+        if cfg.cp_over_world:
+            cp_mesh = get_1D_world_mesh(world_size)
+            cp_degree = world_size
+        else:
+            cp_mesh = get_2D_world_mesh(world_size)["intra_node"]
+            cp_degree = torch.cuda.device_count()
+    else:
+        cp_mesh = None
+        cp_degree = 1
+    dp_degree = world_size // cp_degree
+
+    if cfg.sharding_strategy == "fsdp":
+        fsdp_mesh = get_1D_world_mesh(world_size)
+    elif cfg.sharding_strategy == "hsdp":
+        fsdp_mesh = get_2D_world_mesh(world_size)
+    else:
+        fsdp_mesh = None
+
     # get model
     config_data = get_model_config(cfg.model_variant)
     mamba_config = MambaConfig(**config_data)
-    model = MambaLMHeadModel(mamba_config)
+    model = MambaLMHeadModel(
+        mamba_config,
+        cp_mesh=cp_mesh if cfg.cp else None,
+        cp_mamba_impl=cfg.cp_mamba_impl if cfg.cp else None,
+        cp_attn_impl=cfg.cp_attn_impl if cfg.cp else None,
+    )
 
     if rank == 0:
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -77,7 +118,7 @@ def main(**kwargs):
     if rank == 0:
         print("Constructing datasets...")
     if not cfg.use_dummy_dataset:
-        train_loader = get_data_loader(cfg, rank, world_size)
+        train_loader = get_data_loader(cfg, rank, world_size, dp_degree)
     else:
         train_loader = get_dummy_loader(cfg, rank, world_size)
     if rank == 0:
@@ -86,6 +127,7 @@ def main(**kwargs):
     # FSDP
     model = FSDP(
         model,
+        device_mesh=fsdp_mesh,
         auto_wrap_policy=wrapping_policy,
         mixed_precision=mixed_precision_policy,
         sharding_strategy=sharding_strategy_policy,
@@ -94,24 +136,29 @@ def main(**kwargs):
         limit_all_gathers=True,
         param_init_fn=param_init_fn,
     )
+    if rank == 0:
+        print(model)
 
     # fsdp activation checkpointing
     if cfg.fsdp_activation_checkpointing:
         if rank == 0:
-            print(f"--> applying FSDP activation checkpointing...")
+            print("--> applying FSDP activation checkpointing...")
         apply_selective_ac(model, p=cfg.selective_checkpointing)
 
     # torch compile
     if cfg.use_torch_compile:
         if rank == 0:
-            print(f"--> enabling torch compile...")
+            print("--> enabling torch compile...")
         # the default accumulated_cache_size_limit=64 is not enough for 70b model, so we make it 128 here
         torch._dynamo.config.accumulated_cache_size_limit = 128
         model = torch.compile(model)
 
     # Optimizer
     optimizer = optim.AdamW(
-        model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
+        model.parameters(),
+        lr=cfg.learning_rate,
+        betas=(0.9, 0.95),
+        weight_decay=0.1,
     )
 
     # optionally load from checkpoint (when continue pretraining)
@@ -168,6 +215,7 @@ def main(**kwargs):
         checkpointer,
         start_step,
         tokens_seen,
+        cp_degree,
     )
 
     checkpointer.save_single_file(cfg.num_steps, model)
