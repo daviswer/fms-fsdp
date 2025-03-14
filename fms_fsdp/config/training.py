@@ -50,6 +50,7 @@ class train_config:
     profiler_rank0_only: bool = True
 
     # logging
+    verbose: bool = False
     report_interval: int = 100
     checkpoint_interval: int = 10000
     tracker: Optional[str] = None  # None, "wandb", "aim"
