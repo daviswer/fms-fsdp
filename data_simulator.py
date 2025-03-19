@@ -51,7 +51,7 @@ for batch_idx, (input, label) in enumerate(train_loader, start=start_step+1):
         out[batch_idx] = (input, label)
     else:
         break
-    n_stops.append(input.eq(cfg.eos_token).sum(1).mean(0).item())
+    n_stops.append(input.eq(cfg.eos_token).sum(1).float().mean(0).item())
     if batch_idx % cfg.report_interval == 0:
         current_step_time = (time.time() - start) / cfg.report_interval
         current_throughput = int(
