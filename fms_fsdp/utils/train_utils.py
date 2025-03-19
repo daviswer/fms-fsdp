@@ -81,6 +81,8 @@ def train(
     for batch_idx, (input, label) in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
+        if batch_idx==10 and rank==13:
+            torch.save(input, "/gpfs/davis/TEMP/targ.pth")
         input = input.to(local_rank)
         label = label.to(local_rank)
 
