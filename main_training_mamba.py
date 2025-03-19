@@ -2,6 +2,7 @@ import math
 import os
 from pathlib import Path
 
+import logging
 import fire
 import torch
 import torch.optim as optim
@@ -29,6 +30,8 @@ def main(**kwargs):
     # get configs
     cfg = config.train_config()
     update_config(cfg, **kwargs)
+    if cfg.verbose:
+        logging.basicConfig(level=logging.INFO)
 
     # ensure reproducibility
     torch.cuda.manual_seed(cfg.seed)
@@ -145,7 +148,7 @@ def main(**kwargs):
             * (1 + math.cos(min(x, cfg.num_steps) / cfg.num_steps * math.pi)),
         )
 
-    scheduler = LambdaLR(optimizer, lambda x: schedule(x + start_step))
+    scheduler = LambdaLR(optimizer, schedule) #lambda x: schedule(x + start_step))
 
     # profiler
     profiler = get_profiler(cfg, rank)
