@@ -45,9 +45,9 @@ start = time.time()
 out = {}
 print(f"Training for {cfg.num_steps} steps")
 for batch_idx, (input, label) in enumerate(train_loader, start=start_step+1):
-    if batch_idx < cfg.num_steps - cfg.checkpoint_interval:
+    if batch_idx <= cfg.num_steps - cfg.checkpoint_interval:
         pass
-    elif batch_idx >= cfg.num_steps - cfg.checkpoint_interval and batch_idx < cfg.num_steps:
+    elif batch_idx > cfg.num_steps - cfg.checkpoint_interval and batch_idx <= cfg.num_steps:
         out[batch_idx] = (input, label)
     else:
         break
