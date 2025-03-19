@@ -1,4 +1,6 @@
 import argparse
+import logging
+import logging.config
 import os
 import time
 import torch
@@ -28,6 +30,7 @@ parser.add_argument("--strip_tokens", type=str, default="")
 parser.add_argument("--report_interval", type=int, default=100)
 parser.add_argument("--ckpt_save_path", type=str, default="./")
 
+logging.basicConfig(level='INFO')
 args = parser.parse_args()
 cfg = train_config()
 argdict = vars(args)
