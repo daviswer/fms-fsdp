@@ -66,6 +66,7 @@ for batch_idx, (input, label) in enumerate(train_loader, start=start_step+1):
         print()
         start = time.time()
 
+out["avg_breaks"] = sum(n_stops)/len(n_stops)
 torch.save(out, os.path.join(cfg.ckpt_save_path, f"training_data_rank_{rank}.pth"))
 print("Run complete!")
     
