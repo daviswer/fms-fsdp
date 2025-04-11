@@ -19,26 +19,26 @@ from fms_fsdp.utils.checkpointing_utils import get_latest
 """
 The following distributed dataloaders are designed around 3 main principles:
 
-1. Efficient, asynchronous operation. Workers on different devices do not communicate. 
-2. Modularity. Data loading pipeline is composed of wrapped iterators, the base iterator 
-    loading from disk and additional layers adding levels of post-processing (shuffling, 
+1. Efficient, asynchronous operation. Workers on different devices do not communicate.
+2. Modularity. Data loading pipeline is composed of wrapped iterators, the base iterator
+    loading from disk and additional layers adding levels of post-processing (shuffling,
     packing, padding, etc.).
-3. Seamless resumption from checkpoint. Each stage of the pipeline maintains an internal 
-    state that can be written/read on disk via implemented recursive `state_dict()` and 
+3. Seamless resumption from checkpoint. Each stage of the pipeline maintains an internal
+    state that can be written/read on disk via implemented recursive `state_dict()` and
     `load_state_dict()` calls.
-4. Rescalability. Users can save and load checkpoints to/from different numbers of workers 
-    without losing the global state. This is accomplished by splitting state fields for each 
-    layer into `state_params`, which are typically scalar-valued and can be discarded when 
-    rescaling (i.e. counters, RNG states), and `reshard_params`, which are lists that can be 
+4. Rescalability. Users can save and load checkpoints to/from different numbers of workers
+    without losing the global state. This is accomplished by splitting state fields for each
+    layer into `state_params`, which are typically scalar-valued and can be discarded when
+    rescaling (i.e. counters, RNG states), and `reshard_params`, which are lists that can be
     re-distributed over workers (i.e. buffers).
 
-Our loaders obey the following type hierarchy: 
-torch.data.IterableDataset -> _StatefulDataset -> _WrapperDataset. 
-`_StatefulDataset` implements state and checkpointing logic. A `_WrapperDataset` holds a 
-single `_StatefulDataset` and iterates via calling its wrapped dataset any number of times, 
-then applying some sort of post-processing and yielding the result. Users build data processing 
-pipelines by wrapping a base `_StatefulDataset` in any number of `_WrapperDataset` layers, 
-which is then passed to the torch DataLoader. 
+Our loaders obey the following type hierarchy:
+torch.data.IterableDataset -> _StatefulDataset -> _WrapperDataset.
+`_StatefulDataset` implements state and checkpointing logic. A `_WrapperDataset` holds a
+single `_StatefulDataset` and iterates via calling its wrapped dataset any number of times,
+then applying some sort of post-processing and yielding the result. Users build data processing
+pipelines by wrapping a base `_StatefulDataset` in any number of `_WrapperDataset` layers,
+which is then passed to the torch DataLoader.
 """
 
 
@@ -343,8 +343,8 @@ class ArrowHandler(_ShardFileHandler):
     Non-standard data format, though.
     """
 
-    def __init__(self, col_name: str = "tokens"):
-        self.col_name = col_name
+    def __init__(self, col_names: List[str] = ["tokens"]):
+        self.col_names = col_names
 
     def is_legal(self, filepath: str):
         return "arrow" in os.path.splitext(filepath)[1]
@@ -356,7 +356,14 @@ class ArrowHandler(_ShardFileHandler):
         return self.open(path).num_record_batches
 
     def get(self, reader: pa.RecordBatchFileReader, index: int, drop_tokens: Set):
-        doc = reader.get_batch(index)[self.col_name]
+        frame = reader.get_batch(index)
+
+        doc = None
+        for name in self.col_names:
+            if name in frame.column_names:
+                doc = frame[name]
+                break
+        assert doc is not None, f"None of column names {self.col_names} found in file headers {frame.column_names}"
         if len(doc) > 0 and doc[0].as_py() in drop_tokens:
             doc = doc.slice(1, len(doc) - 1)
         # Recheck len for edge case where doc=[eos]
@@ -376,23 +383,32 @@ class ParquetHandler(_ShardFileHandler):
     before getting/slicing. However, this is a standard and widely-used data format.
     """
 
-    def __init__(self, tokenizer_path: str, col_name: str = "text"):
+    def __init__(self, tokenizer_path: str, col_names: List[str] = ["text"]):
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-        self.col_name = col_name
+        self.col_names = col_names
 
     def is_legal(self, filepath: str):
         return "parquet" in os.path.splitext(filepath)[1]
 
     def open(self, path: str):
-        return pq.read_pandas(path, columns=[self.col_name], partitioning=None)[
-            self.col_name
-        ]
+        names = pq.read_metadata(path).schema.names
+        match = None
+        for name in self.col_names:
+            if name in names:
+                match = name
+                break
+        assert match is not None, f"None of column names {self.col_names} found in file headers {names}"
+        return pq.read_pandas(path, columns=[match], partitioning=None)[match]
 
     def length(self, path: str):
         return pq.read_metadata(path).num_rows
 
     def get(self, reader, index: int, drop_tokens: Set):
+
+        document_str = str(reader[index])
+
         doc = self.tokenizer(str(reader[index]))["input_ids"]
+
         if len(doc) > 0 and doc[0] in drop_tokens:
             doc = doc[1:]
         # Recheck len for edge case where doc=[eos]
@@ -405,9 +421,9 @@ class ParquetHandler(_ShardFileHandler):
 
 
 class AutoHandler(_ShardFileHandler):
-    def __init__(self, tokenizer_path: str, col_name: str = "text"):
-        self.PHandler = ParquetHandler(tokenizer_path, col_name)
-        self.AHandler = ArrowHandler()
+    def __init__(self, tokenizer_path: str, col_names: List[str] = ["text", "contents", "tokens"]):
+        self.PHandler = ParquetHandler(tokenizer_path, col_names)
+        self.AHandler = ArrowHandler(col_names)
         self.current = _ShardFileHandler()
 
     def is_legal(self, filepath: str):
@@ -879,6 +895,7 @@ class StreamingDocDataset(_StatefulDataset):
         # Position
         self.docset_index = 0
         self.chunk_index = -1
+        self.has_yielded = False
 
         # Stats
         self.epochs_seen = -1
@@ -925,6 +942,8 @@ class StreamingDocDataset(_StatefulDataset):
                 for root, dirs, files in os.walk(datapath, topdown=False)
                 for name in files
                 if self.filehandler.is_legal(os.path.join(root, name))
+                and os.path.getsize(os.path.join(root, name)) > 1_000_000
+                # 1mb minimum file size to prevent empty files
             ]
             shards.sort()  # Ensure consistent sharding across machines
             start_frag = (self.rank * self.worldsize * len(shards)) // self.worldsize
@@ -953,8 +972,8 @@ class StreamingDocDataset(_StatefulDataset):
                     reader = csv.DictReader(csvfile)
                     for row in reader:
                         fullpath = row["dataset/filename"]
-                        prefix = fullpath.find("/" + dataset) + 1
-                        if prefix > 0:
+                        prefix = fullpath.find(dataset)
+                        if prefix >= 0:
                             key = fullpath[prefix + len(dataset) + 1 :]
                             doc_counts[key] = int(row["documents"])
             else:
@@ -1110,6 +1129,7 @@ class StreamingDocDataset(_StatefulDataset):
                                 self.percent_seen = (
                                     self.docs_seen * 100 / (self._len + 1e-9)
                                 )
+                            self.has_yielded = True
                             yield self._construct_chunk(j, doc, n_chunks)
 
                 # Advance RNG state
@@ -1130,7 +1150,11 @@ class StreamingDocDataset(_StatefulDataset):
                 n_chunks = math.ceil(doclen / self.chunksize)
                 for j in range(residual_chunks):
                     self.chunk_index = j
+                    self.has_yielded = True
                     yield self._construct_chunk(j, doc, n_chunks)
+
+            # Check that epoch was non-empty
+            assert self.has_yielded, f"Empty logical shard detected: {self.dataset, self.docset}"
 
     def load_state_dict(self, state_dicts, sharded_input=False):
         self.setup()
