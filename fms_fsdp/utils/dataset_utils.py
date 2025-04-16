@@ -666,6 +666,7 @@ class PreloadBufferDataset(_WrapperDataset):
         self.reshard_params = ["buffer"]
 
     def __iter__(self):
+        self.setup()
         dataset = iter(self.dataset)
         while True:
             # Pad out buffer if needed
@@ -717,12 +718,16 @@ class DocPackingDataset(_WrapperDataset):
             self,
             dataset: _StatefulDataset,
             seq_len: int,
+            n_pads: int,
             delimiter_token: Any,
+            pad_token: Any,
             n_bins: int = 100,
     ):
         super().__init__(dataset)
         self.len = seq_len
         self.delimiter = delimiter_token
+        self.pad = pad_token
+        self.npads = n_pads
         self.nbins = n_bins
         self.bins = [[] for _ in range(n_bins)]
         self.doc = []
@@ -731,13 +736,14 @@ class DocPackingDataset(_WrapperDataset):
         self.truncs = 0
 
     def __iter__(self):
+        self.setup()
         dataset = iter(self.dataset)
         slack = torch.tensor([self.len - len(b) for b in self.bins])
         while True:
             # Flush any full bins
-            while 0 in slack:
-                i = slack.eq(0).int().argmax().item()
-                out = self.bins[i]
+            while slack.le(self.n_pads).int().sum() > 0:
+                i = slack.argmin().item()
+                out = self.bins[i] + [self.pad]*(slack[i].item())
                 self.bins[i] = []
                 slack[i] = self.len
                 yield out
@@ -869,6 +875,7 @@ class BufferDataset(_WrapperDataset):
 
     # Fill buffer line by line, delimiters and packing/splitting as appropriate
     def __iter__(self):
+        self.setup()
         dataset = iter(self.dataset)
         while True:
             out, buffer = self._get_buffer(dataset, self.len, self.buffer)
@@ -1152,8 +1159,7 @@ class StreamingDocDataset(_StatefulDataset):
                 return state
 
     def __iter__(self):
-        if not self.is_setup:
-            self.setup()
+        self.setup()
         docset_offset = self.docset_index
         lcg_offset = self.lcg_state
         residual_chunks = self.chunk_index + 1  # pick up AFTER where the ckp left off
