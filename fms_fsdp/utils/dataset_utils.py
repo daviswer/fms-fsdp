@@ -742,6 +742,7 @@ class DocPackingDataset(_WrapperDataset):
         while True:
             # Flush any full bins
             while slack.le(self.n_pads).int().sum() > 0:
+                print(slack)
                 i = slack.argmin().item()
                 out = self.bins[i] + [self.pad]*(slack[i].item())
                 self.bins[i] = []
