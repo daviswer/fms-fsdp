@@ -741,7 +741,7 @@ class DocPackingDataset(_WrapperDataset):
         slack = torch.tensor([self.len - len(b) for b in self.bins])
         while True:
             # Flush any full bins
-            while slack.le(self.n_pads).int().sum() > 0:
+            while slack.le(self.npads).int().sum() > 0:
                 print(slack)
                 i = slack.argmin().item()
                 out = self.bins[i] + [self.pad]*(slack[i].item())
