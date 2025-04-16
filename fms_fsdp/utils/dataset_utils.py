@@ -733,7 +733,8 @@ class DocPackingDataset(_WrapperDataset):
         self.doc = []
         self.state_params = ["doc"]
         self.reshard_params = ["bins"]
-        self.truncs = 0
+        self.bad_truncs = 0
+        self.good_truncs = 0
 
     def __iter__(self):
         self.setup()
@@ -742,7 +743,6 @@ class DocPackingDataset(_WrapperDataset):
         while True:
             # Flush any full bins
             while slack.le(self.npads).int().sum() > 0:
-                print(slack)
                 i = slack.argmin().item()
                 out = self.bins[i] + [self.pad]*(slack[i].item())
                 self.bins[i] = []
@@ -756,7 +756,7 @@ class DocPackingDataset(_WrapperDataset):
             while len(self.doc) > self.len:
                 out = self.doc[:self.len]
                 self.doc = self.doc[self.len:]
-                self.truncs += 1
+                self.good_truncs += 1
                 yield out
             if len(self.doc) > 0:
                 # Determine if doc fits into existing buckets
@@ -774,7 +774,7 @@ class DocPackingDataset(_WrapperDataset):
                     best_bin = slack.argmin().item()
                     self.bins[best_bin] += self.doc[:slack[best_bin].item()]
                     self.doc = self.doc[slack[best_bin].item():]
-                    self.truncs += 1
+                    self.bad_truncs += 1
                     slack[best_bin] = 0
 
     def load_state_dict(self, state_dicts, sharded_input=False):
