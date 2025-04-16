@@ -712,6 +712,60 @@ class PreloadBufferDataset(_WrapperDataset):
         return sharded_dicts
 
 
+class DocPackingDataset(_WrapperDataset):
+    def __init__(
+            self,
+            dataset: _StatefulDataset,
+            seq_len: int,
+            delimiter_token: Any,
+            n_bins: int = 100,
+    ):
+        super().__init__(dataset)
+        self.len = seq_len
+        self.delimiter = delimiter_token
+        self.bins = [[] for _ in range(n_bins)]
+        self.doc = []
+        self.state_params = ["bins", "doc"]
+
+    def __iter__(self):
+        dataset = iter(self.dataset)
+        slack = torch.tensor([self.len - len(b) for b in self.bins])
+        while True:
+            # Flush any full bins
+            while 0 in slack:
+                i = slack.eq(0).int().argmax().item()
+                out = self.bins[i]
+                self.bins[i] = []
+                slack[i] = self.len
+                yield out
+            # If no current doc, fetch one entire doc
+            if len(self.doc) == 0:
+                while len(self.doc)==0 or self.doc[-1] != self.delimiter:
+                    self.doc += next(dataset)
+            # If doc is large, return as many full chunks as possible
+            while len(self.doc) > self.len:
+                out = self.doc[:self.len]
+                self.doc = self.doc[self.len:]
+                yield out
+            if len(self.doc) > 0:
+                # Determine if doc fits into existing buckets
+                doc_fits = slack.ge(len(self.doc)).int().sum().item() >= 1
+                if doc_fits:
+                    # Add doc to fullest available bin
+                    slack_after = slack.sub(len(self.doc))
+                    slack_after += slack_after.sign().clamp(min=-1,max=0).neg().mul(1e9).int()
+                    best_bin = slack_after.argmin().item()
+                    self.bins[best_bin] += self.doc
+                    slack[best_bin] = slack[best_bin] - len(self.doc)
+                    self.doc = []
+                else:
+                    # Add doc section to fullest bin
+                    best_bin = slack.argmin().item()
+                    self.bins[best_bin] += self.doc[:slack[best_bin].item()]
+                    self.doc = self.doc[slack[best_bin].item():]
+                    slack[best_bin] = 0
+
+
 class BufferDataset(_WrapperDataset):
     """
     Wrapper for a _StatefulDataset that takes in sequences of varying lengths, and packs/pads them

@@ -5,6 +5,7 @@ from fms_fsdp.utils.dataset_utils import (
     AutoHandler,
     BufferDataset,
     CheckpointDataset,
+    DocPackingDataset,
     ParquetHandler,
     PreloadBufferDataset,
     PreprocessDataset,
@@ -118,13 +119,18 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
         verbose=(rank == 0),
     )
     # Wrap above dataset in packing logic to form constant-length lines.
-    data = BufferDataset(
+    data = DocPackingDataset(
         data,
         cfg.seq_length if causal_lm not in postprocess else cfg.seq_length + 1,
-        bos_token=cfg.bol_token,
-        eos_token=cfg.eol_token,
-        pack_hard=True,
+        cfg.eos_token,
     )
+    # data = BufferDataset(
+    #     data,
+    #     cfg.seq_length if causal_lm not in postprocess else cfg.seq_length + 1,
+    #     bos_token=cfg.bol_token,
+    #     eos_token=cfg.eol_token,
+    #     pack_hard=True,
+    # )
     # Shuffle outputs in length 10k buffer. Consecutive lines appear 10k steps apart on average.
     data = PreloadBufferDataset(data, 10000)
 
