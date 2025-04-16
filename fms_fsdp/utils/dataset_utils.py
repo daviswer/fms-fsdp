@@ -726,6 +726,7 @@ class DocPackingDataset(_WrapperDataset):
         self.bins = [[] for _ in range(n_bins)]
         self.doc = []
         self.state_params = ["bins", "doc"]
+        self.truncs = 0
 
     def __iter__(self):
         dataset = iter(self.dataset)
@@ -746,6 +747,7 @@ class DocPackingDataset(_WrapperDataset):
             while len(self.doc) > self.len:
                 out = self.doc[:self.len]
                 self.doc = self.doc[self.len:]
+                self.truncs += 1
                 yield out
             if len(self.doc) > 0:
                 # Determine if doc fits into existing buckets
@@ -763,6 +765,7 @@ class DocPackingDataset(_WrapperDataset):
                     best_bin = slack.argmin().item()
                     self.bins[best_bin] += self.doc[:slack[best_bin].item()]
                     self.doc = self.doc[slack[best_bin].item():]
+                    self.truncs += 1
                     slack[best_bin] = 0
 
 
