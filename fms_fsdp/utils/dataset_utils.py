@@ -723,9 +723,11 @@ class DocPackingDataset(_WrapperDataset):
         super().__init__(dataset)
         self.len = seq_len
         self.delimiter = delimiter_token
+        self.nbins = n_bins
         self.bins = [[] for _ in range(n_bins)]
         self.doc = []
-        self.state_params = ["bins", "doc"]
+        self.state_params = ["doc"]
+        self.reshard_params = ["bins"]
         self.truncs = 0
 
     def __iter__(self):
@@ -767,6 +769,13 @@ class DocPackingDataset(_WrapperDataset):
                     self.doc = self.doc[slack[best_bin].item():]
                     self.truncs += 1
                     slack[best_bin] = 0
+
+    def load_state_dict(self, state_dicts, sharded_input=False):
+        out = super().load_state_dict(state_dicts, sharded_input)
+        # If we've scaled up, add back empty buckets
+        if len(self.bins) < self.nbins:
+            self.bins += [[] for _ in range(self.nbins - len(self.bins))]
+        return out
 
 
 class BufferDataset(_WrapperDataset):
