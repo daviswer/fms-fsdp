@@ -1,5 +1,6 @@
 import torch
 
+from functools import partial
 from fms_fsdp.utils.dataset_utils import (
     ArrowHandler,
     AutoHandler,
@@ -22,7 +23,7 @@ _handler_map = {
 }
 
 
-def causal_lm(data_seq, prompt_len=1):
+def causal_lm(data_seq, prompt_len=1, mask_token=None):
     """
     Perform causal language modeling by right-shifting the input sequence.
     Sets first prompt_len tokens to be ignored by the loss.
@@ -31,6 +32,8 @@ def causal_lm(data_seq, prompt_len=1):
     t = data_seq.clone()[1:]
     data_seq = data_seq[:-1]
     t[:prompt_len] = -100
+    if mask_token is not None:
+        t[data_seq.eq(mask_token).nonzero()] = -100
     return data_seq, t
 
 
@@ -122,6 +125,8 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
     data = DocPackingDataset(
         data,
         cfg.seq_length if causal_lm not in postprocess else cfg.seq_length + 1,
+        cfg.seq_length//1000,
+        cfg.eos_token,
         cfg.eos_token,
     )
     # data = BufferDataset(
@@ -137,7 +142,10 @@ def get_data_loader(cfg, rank, world_size, postprocess=[causal_lm]):
     # Apply desired postprocessing steps in sequence
     data = PreprocessDataset(data, torch.IntTensor)
     for p in postprocess:
-        data = PreprocessDataset(data, p)
+        if p is causal_lm:
+            data = PreprocessDataset(data, partial(p, mask_token=cfg.eos_token))
+        else:
+            data = PreprocessDataset(data, p)
 
     # Enable auto-saving
     data = CheckpointDataset(
