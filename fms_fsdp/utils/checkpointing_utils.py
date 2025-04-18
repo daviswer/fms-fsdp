@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import time
 from pathlib import Path
@@ -345,3 +346,30 @@ class Checkpointer:
         self.report("Checkpoint written", model_save_time=time.time() - save_time)
 
         return self._cleanup()
+
+
+def convert_state_dict_to_mamba_ssm(model):
+    original_sd = model.state_dict()
+    state_dict = {}
+
+    for orig_k in list(original_sd.keys()):
+        k = orig_k.replace("model", "backbone")
+        k = k.replace("embed_tokens", "embedding")
+        k = k.replace("mamba", "mixer")
+        k = k.replace("final_layernorm", "norm_f")
+        k = re.sub(r"(\d+)\.input_layernorm\.", r"\1.norm.", k)
+        k = re.sub(r"(\d+)\.pre_ff_layernorm\.", r"\1.norm2.", k)
+        k = k.replace("feed_forward.down_proj", "mlp.fc2")
+        k = k.replace("self_attn.o_proj", "mixer.out_proj")
+        if k != orig_k:
+            state_dict[k] = original_sd.pop(orig_k)
+    for i in range(len(model.layers)):
+        w1 = original_sd.pop(f"layers.{i}.feed_forward.up_proj.weight")
+        w2 = original_sd.pop(f"layers.{i}.feed_forward.gate_proj.weight")
+        state_dict[f"layers.{i}.mlp.fc1.weight"] = torch.cat([w1,w2], dim=0)
+        if f"layers.{i}.self_attn.q_proj.weight" in original_sd:
+            q = original_sd.pop(f"layers.{i}.self_attn.q_proj.weight")
+            k = original_sd.pop(f"layers.{i}.self_attn.k_proj.weight")
+            v = original_sd.pop(f"layers.{i}.self_attn.v_proj.weight")
+            state_dict[f"layers.{i}.mixer.in_proj.weight"] = torch.cat([q,k,v], dim=0)
+    return state_dict, original_sd
