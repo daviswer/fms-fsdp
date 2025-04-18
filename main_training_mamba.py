@@ -153,6 +153,11 @@ def main(**kwargs):
     # profiler
     profiler = get_profiler(cfg, rank)
 
+    # signaturing
+    sig = model(torch.arange(10)[None].cuda())[0].arg_min(dim=-1).tolist()
+    if rank == 0:
+        print("Signature:", sig)
+
     # Train
     if rank == 0:
         print(f"Training for {cfg.num_steps} steps")
