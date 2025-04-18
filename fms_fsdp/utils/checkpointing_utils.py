@@ -372,5 +372,5 @@ def convert_state_dict_to_mamba_ssm(model):
             k = original_sd.pop(f"layers.{i}.self_attn.k_proj.weight")
             v = original_sd.pop(f"layers.{i}.self_attn.v_proj.weight")
             state_dict[f"backbone.layers.{i}.mixer.in_proj.weight"] = torch.cat([q,k,v], dim=0)
-    assert len(original_sd==0), original_sd.keys()
+    assert len(original_sd)==0, original_sd.keys()
     return {"model_state":state_dict}
