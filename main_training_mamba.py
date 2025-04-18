@@ -154,7 +154,7 @@ def main(**kwargs):
     profiler = get_profiler(cfg, rank)
 
     # signaturing
-    sig = model(torch.arange(10)[None].cuda())[0].arg_min(dim=-1).tolist()
+    sig = model(torch.arange(10)[None].cuda())[0].argmax(dim=-1).tolist()
     if rank == 0:
         print("Signature:", sig)
 
