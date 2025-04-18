@@ -354,7 +354,7 @@ def convert_state_dict_to_mamba_ssm(model):
 
     for orig_k in list(original_sd.keys()):
         # k = orig_k.replace("model", "backbone")
-        k = k.replace("embed_tokens", "embedding")
+        k = orig_k.replace("embed_tokens", "embedding")
         k = k.replace("mamba", "mixer")
         k = k.replace("final_layernorm", "norm_f")
         k = re.sub(r"(\d+)\.input_layernorm\.", r"\1.norm.", k)
