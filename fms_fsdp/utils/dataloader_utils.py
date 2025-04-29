@@ -138,11 +138,11 @@ def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
     # Shuffle outputs in length 10k buffer. Consecutive lines appear 10k steps apart on average.
     data = PreloadBufferDataset(data, 1000)
     # Slice and rearrange docs to force long-context retrieval
-    data = DocSliceDataset(
-        data,
-        cfg.eos_token,
-        slice_rate=.75,
-    )
+    # data = DocSliceDataset(
+    #     data,
+    #     cfg.eos_token,
+    #     slice_rate=.75,
+    # )
 
     # Apply desired postprocessing steps in sequence
     data = PreprocessDataset(data, torch.IntTensor)
