@@ -1024,7 +1024,7 @@ class StreamingDocDataset(_StatefulDataset):
 
             if self.verbose:
                 logging.info(
-                    f"    Worker {self.rank} ingested {len(shardfrags)} shard fragments from {dataset}"
+                    f"    Worker {self.rank} ingested {len(self.docset)} shard fragments from {dataset}"
                 )
 
             # Shuffle shard files - guaranteed inconsistent across workers
