@@ -126,6 +126,7 @@ def get_model_config(model_variant):
             nlayers=24,
             hidden_grow_factor=8 / 3,
             max_expected_seq_len=4096,
+            rope_theta=500000.0,
         )
     elif model_variant == "llama3_70b":
         model_config = LLaMAConfig(
@@ -175,6 +176,65 @@ def get_model_config(model_variant):
                 "out_proj_bias": False,
                 "qkv_proj_bias": False,
                 "rotary_emb_dim": 64,
+            },
+            "rms_norm": True,
+            "residual_in_fp32": True,
+            "fused_add_norm": True,
+            "pad_vocab_size_multiple": 16,
+            "tie_embeddings": False,
+        }
+    elif model_variant == "llama3_1b":
+        model_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=1024,
+            nheads=16,
+            kvheads=8,
+            nlayers=48,
+            hidden_grow_factor=3.5,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
+    elif model_variant == "mamba_1b":
+        model_config = {
+            "d_model": 1280,
+            "d_intermediate": 3072,
+            "n_layer": 32,
+            "vocab_size": 128256,
+            "ssm_cfg": {"layer": "Mamba2"},
+            "attn_layer_idx": [9, 18, 27],
+            "attn_cfg": {
+                "causal": True,
+                "d_conv": 0,
+                "head_dim": 128,
+                "num_heads": 10,
+                "num_heads_kv": 5,
+                "out_proj_bias": False,
+                "qkv_proj_bias": False,
+                "rotary_emb_dim": 64,
+            },
+            "rms_norm": True,
+            "residual_in_fp32": True,
+            "fused_add_norm": True,
+            "pad_vocab_size_multiple": 16,
+            "tie_embeddings": False,
+        }
+    elif model_variant == "mamba_1b_nope":
+        model_config = {
+            "d_model": 1280,
+            "d_intermediate": 3072,
+            "n_layer": 32,
+            "vocab_size": 128256,
+            "ssm_cfg": {"layer": "Mamba2"},
+            "attn_layer_idx": [9, 18, 27],
+            "attn_cfg": {
+                "causal": True,
+                "d_conv": 0,
+                "head_dim": 128,
+                "num_heads": 10,
+                "num_heads_kv": 5,
+                "out_proj_bias": False,
+                "qkv_proj_bias": False,
+                "rotary_emb_dim": 0,
             },
             "rms_norm": True,
             "residual_in_fp32": True,
