@@ -2,6 +2,7 @@ import math
 import os
 
 import fire
+import logging
 import torch
 import torch.optim as optim
 from fms.models.llama import LLaMA, LLaMABlock
@@ -23,6 +24,9 @@ from fms_fsdp.utils.train_utils import (
 
 
 def main(**kwargs):
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.INFO)
+    
     # get configs
     cfg = config.train_config()
     update_config(cfg, **kwargs)
