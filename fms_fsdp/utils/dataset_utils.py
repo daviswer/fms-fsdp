@@ -799,6 +799,7 @@ class BufferDataset(_WrapperDataset):
                 else:
                     out = buffer
                 buffer = new
+        print(f"Rank {self.rank} reporting!")
         return out, buffer
 
     # Fill buffer line by line, delimiters and packing/splitting as appropriate
