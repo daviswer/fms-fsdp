@@ -799,7 +799,6 @@ class BufferDataset(_WrapperDataset):
                 else:
                     out = buffer
                 buffer = new
-        print(f"Rank {self.rank} reporting!")
         return out, buffer
 
     # Fill buffer line by line, delimiters and packing/splitting as appropriate
@@ -1061,6 +1060,8 @@ class StreamingDocDataset(_StatefulDataset):
                 logging.info(f"Worker {self.rank} opening new file {newpath}")
             reader = self.filehandler.open(newpath)
             path = newpath
+        if self.rank==9:
+            print("Fetching file", path)
         return path, reader
 
     def _construct_chunk(self, j, doc, n_chunks):
@@ -1125,7 +1126,11 @@ class StreamingDocDataset(_StatefulDataset):
                 # Map id in range of owned docs to new (consistently) shuffled id
                 doclcg = self._random_map_docid(docrange)
                 docid = doclcg + mindoc
+                if self.rank==9:
+                    print("Fetching doc", docid)
                 doc = self.filehandler.get(reader, docid, self.drop)
+                if self.rank==9:
+                    print("Doc fetched, length", len(doc))
                 if len(doc) == 0:
                     continue
                 doclen = len(doc) + 1 if self.bos is None else len(doc) + 2
