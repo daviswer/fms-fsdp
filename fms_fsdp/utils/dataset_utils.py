@@ -405,7 +405,7 @@ class ParquetHandler(_ShardFileHandler):
 
     def get(self, reader, index: int, drop_tokens: Set):
 
-        document_str = str(reader[index])[:500000]
+        document_str = str(reader[index])[:1_000_000]
 
         doc = self.tokenizer(document_str)["input_ids"]
 
