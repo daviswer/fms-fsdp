@@ -407,7 +407,7 @@ class ParquetHandler(_ShardFileHandler):
 
         document_str = str(reader[index])[:500000]
 
-        doc = self.tokenizer(str(reader[index]))["input_ids"]
+        doc = self.tokenizer(document_str)["input_ids"]
 
         if len(doc) > 0 and doc[0] in drop_tokens:
             doc = doc[1:]
