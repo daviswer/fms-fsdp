@@ -875,6 +875,7 @@ class StreamingDocDataset(_StatefulDataset):
         seed: int = 42,
         min_length: int = 1,
         max_chunksize: int = 1024,
+        max_consecutive_chunks: int = 16,
         verbose: bool = False,
     ):
         super().__init__(datapath, rank, worldsize)
@@ -887,6 +888,7 @@ class StreamingDocDataset(_StatefulDataset):
         self.eos = delimiter_token
         self.bos = bos_token
         self.drop = strip_tokens
+        self.max_consec = max_consecutive_chunks
         self.verbose = verbose
         self.docset: List[
             Any
@@ -902,6 +904,7 @@ class StreamingDocDataset(_StatefulDataset):
         self.tokens_seen = 0
         self.docs_seen = 0
         self.percent_seen = 0
+        self.consec = 0
 
         self.state_params = [
             "dataset",
@@ -912,6 +915,7 @@ class StreamingDocDataset(_StatefulDataset):
             "docs_seen",
             "percent_seen",
             "lcg_state",
+            "consec",
         ]
 
         # Setup flags
@@ -1079,8 +1083,11 @@ class StreamingDocDataset(_StatefulDataset):
         # Add bos/eos tokens if needed
         if self.bos is not None and j == 0:
             chunk = [self.bos] + chunk
-        if j == n_chunks - 1:
+        if j == n_chunks - 1 or self.consec == self.max_consec:
             chunk = chunk + [self.eos]
+            self.consec = 0
+        else:
+            self.consec += 1
         return chunk
 
     def _random_map_docid(self, size):
