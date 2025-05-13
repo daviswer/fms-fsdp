@@ -1083,6 +1083,8 @@ class StreamingDocDataset(_StatefulDataset):
         # Add bos/eos tokens if needed
         if self.bos is not None and j == 0:
             chunk = [self.bos] + chunk
+        if self.consec == self.max_consec:
+            print(f"    Rank {self.rank} truncated a doc!")
         if j == n_chunks - 1 or self.consec == self.max_consec:
             chunk = chunk + [self.eos]
             self.consec = 0
