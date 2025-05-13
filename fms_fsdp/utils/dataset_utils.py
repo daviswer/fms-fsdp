@@ -1387,7 +1387,9 @@ class SamplingDataset(_WrapperDataset):
         self.tokens_seen = [0] * len(self.datasets)
 
         self.current_iterator = -1
-        self.state_params = ["tokens_seen", "current_iterator"]
+        self.generator = None
+        self.g_state = None
+        self.state_params = ["tokens_seen", "current_iterator", "g_state"]
 
     def setup(self):
         if not self.is_setup:
@@ -1405,6 +1407,7 @@ class SamplingDataset(_WrapperDataset):
                         f"Worker {self.rank} assembled subdataset iterator for {d}, {i+1} of {len(self.datasets)}"
                     )
             [d.setup() for d in self.data]
+            self.generator = torch.Generator().manual_seed(self.rank)
 
     def __iter__(self):
         self.setup()
@@ -1426,11 +1429,14 @@ class SamplingDataset(_WrapperDataset):
                     - self.tokens_seen[i] / (sum(self.tokens_seen) + 1e-9)
                     for i in range(len(self.datasets))
                 ]
-                offset_argmax = max((diff, i) for i, diff in enumerate(offset))[1]
-                self.current_iterator = offset_argmax
+                ind = torch.multinomial(torch.tensor(offset).clamp(min=0), 1, generator=self.generator).item()
+                # offset_argmax = max((diff, i) for i, diff in enumerate(offset))[1]
+                self.current_iterator = ind  # offset_argmax
 
     def state_dict(self):
         self.setup()
+        # Write generator state manually
+        self.g_state = self.generator.get_state()
         # Manually add state of all subloaders to self state
         out = {
             self.statename("sample_iterator_states"): [
@@ -1446,6 +1452,9 @@ class SamplingDataset(_WrapperDataset):
         sharded_dicts = _StatefulDataset.load_state_dict(
             self, state_dicts, sharded_input
         )
+        # Manually set generator state if it exists
+        if self.g_state is not None:
+            self.generator.set_state(self.g_state)
         # Load sub-iterator states
         for i, subdata in enumerate(self.data):
             # Grab just that sub-iterator across all ranks
