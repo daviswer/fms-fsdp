@@ -218,6 +218,19 @@ def get_model_config(model_variant):
             max_expected_seq_len=4096,
             rope_theta=500000.0,
         )
+    elif model_variant == "llama_1b_unrope6":
+        model_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=1280,
+            nheads=16,
+            kvheads=4,
+            nlayers=32,
+            hidden_grow_factor=3.2,
+            max_expected_seq_len=4096,
+            rope_theta=6,
+            rope_scaling={"rope_type":"unrope"},
+            rope_partial=.25,
+        )
     else:
         raise ValueError(f"model variant {model_variant} not supported.")
 
