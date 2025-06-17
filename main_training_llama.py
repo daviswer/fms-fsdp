@@ -1,13 +1,10 @@
 import math
 import os
-from pathlib import Path
 
 import fire
 import torch
 import torch.optim as optim
-from mamba_ssm.models.config_mamba import MambaConfig
-from mamba_ssm.models.mixer_seq_simple import MambaLMHeadModel
-from mamba_ssm.modules.block import Block
+from fms.models.llama import LLaMA, LLaMABlock
 from torch import distributed as dist
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.optim.lr_scheduler import LambdaLR
@@ -47,12 +44,9 @@ def main(**kwargs):
     torch.cuda.set_device(local_rank)
     torch.cuda.empty_cache()
     setup_environ_flags()
-    os.environ["TRITON_CACHE_DIR"] = os.path.join(
-        Path.home(), ".triton", "cache", str(local_rank)
-    )
 
     # get policy
-    block = Block
+    block = LLaMABlock
     (
         mixed_precision_policy,
         wrapping_policy,
@@ -61,10 +55,14 @@ def main(**kwargs):
         param_init_fn,
     ) = get_policies(cfg, rank, block)
 
-    # get model
-    config_data = get_model_config(cfg.model_variant)
-    mamba_config = MambaConfig(**config_data)
-    model = MambaLMHeadModel(mamba_config)
+    # get fms model
+    llama_config = get_model_config(cfg.model_variant)
+    if cfg.low_cpu_fsdp:
+        with torch.device("meta"):
+            model = LLaMA(llama_config)
+    else:
+        model = LLaMA(llama_config)
+        model.reset_parameters()
 
     if rank == 0:
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -90,6 +88,11 @@ def main(**kwargs):
         device_id=torch.cuda.current_device(),
         limit_all_gathers=True,
         param_init_fn=param_init_fn,
+    )
+    # we need this post-fsdp call to avoid graph break with torch.compile, until we figure out a better solution.
+    model.rot_emb.compute_freqs_cis(
+        torch.device("cuda", torch.cuda.current_device()),
+        model.config.max_expected_seq_len,
     )
 
     # fsdp activation checkpointing
@@ -119,11 +122,9 @@ def main(**kwargs):
         model,
         optimizer,
         None,
-        path=(
-            os.path.join(cfg.ckpt_load_path, "checkpoints/")
-            if not os.path.isfile(cfg.ckpt_load_path)
-            else cfg.ckpt_load_path
-        ),
+        path=os.path.join(cfg.ckpt_load_path, "checkpoints/")
+        if not os.path.isfile(cfg.ckpt_load_path)
+        else cfg.ckpt_load_path,
         strict=False,
     )
     if not is_resuming:
@@ -136,37 +137,14 @@ def main(**kwargs):
     if cfg.training_stage == "annealing":
         schedule = lambda x: 1 - x / cfg.num_steps
     else:
-        
-        # (cosine 0.01 decay)
-        # warmup_interval = min(1000, cfg.num_steps // 10)
-        # schedule = lambda x: min(
-        #     1 - (1 - min(x, warmup_interval) / warmup_interval) ** 2,
-        #     0.01
-        #     + 0.5
-        #     * (1 - 0.01)
-        #     * (1 + math.cos(min(x, cfg.num_steps) / cfg.num_steps * math.pi)),
-        # )
-        
-        # (constant schedule)
-        # warmup_interval = 1000  
-        # schedule = lambda x: (
-        #     min(x, warmup_interval) / warmup_interval
-        # )
-        schedule = lambda x: min(1.0, x)
-
-        # (cosine 0.1 decay)
-        # warmup_interval = min(2000, cfg.num_steps // 20)
-        # schedule = lambda x: min(
-        #     1 - (1 - min(x, warmup_interval) / warmup_interval) ** 2,
-        #     0.1
-        #     + 0.5
-        #     * (1 - 0.1)
-        #     * (1 + math.cos(min(x, cfg.num_steps) / cfg.num_steps * math.pi)),
-        # # )
-        
-        # linear decay to 50b tokens and then constant lr
-        # schedule = lambda x: 1.0 + (0.75 - 1.0) * (x / 32000) if x <= 32000 else 0.75
-
+        warmup_interval = min(2000, cfg.num_steps // 20)
+        schedule = lambda x: min(
+            1 - (1 - min(x, warmup_interval) / warmup_interval) ** 2,
+            0.1
+            + 0.5
+            * (1 - 0.1)
+            * (1 + math.cos(min(x, cfg.num_steps) / cfg.num_steps * math.pi)),
+        )
     scheduler = LambdaLR(optimizer, lambda x: schedule(x + start_step))
 
     # profiler
