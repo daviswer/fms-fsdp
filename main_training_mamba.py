@@ -119,9 +119,10 @@ def main(**kwargs):
         else:
             params_with_decay.append(param)
 
+    assert len(params_with_decay) + len(params_without_decay) == len(list(model.named_parameters))
 
-    print(f'{params_with_decay=}')
-    print(f'{params_without_decay=}')
+    # print(f'{params_with_decay=}')
+    # print(f'{params_without_decay=}')
 
     optimizer = optim.AdamW(
         [
