@@ -213,7 +213,10 @@ def get_model_config(model_variant):
             "d_intermediate": 3072,
             "n_layer": 32,
             "vocab_size": 128256,
-            "ssm_cfg": {"layer": "Mamba2"},
+            "ssm_cfg": {
+                "layer": "Mamba2", 
+                "ngroups": 5,
+            },
             "attn_layer_idx": [9, 18, 27],
             "attn_cfg": {
                 "causal": True,
@@ -231,9 +234,6 @@ def get_model_config(model_variant):
             "fused_add_norm": True,
             "pad_vocab_size_multiple": 16,
             "tie_embeddings": False,
-            "ssm_cfg": {
-                "ngroups": 5,
-            },
         }
     elif model_variant == "llama_1b":
         model_config = LLaMAConfig(
