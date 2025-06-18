@@ -231,7 +231,9 @@ def get_model_config(model_variant):
             "fused_add_norm": True,
             "pad_vocab_size_multiple": 16,
             "tie_embeddings": False,
-            "ngroups": 5,
+            "ssm_cfg": {
+                "ngroups": 5,
+            },
         }
     elif model_variant == "llama_1b":
         model_config = LLaMAConfig(
