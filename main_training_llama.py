@@ -22,6 +22,8 @@ from fms_fsdp.utils.train_utils import (
     train,
 )
 
+from transformers import AutoTokenizer
+
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
 
@@ -98,79 +100,89 @@ def main(**kwargs):
         model.config.max_expected_seq_len,
     )
 
-    # fsdp activation checkpointing
-    if cfg.fsdp_activation_checkpointing:
-        if rank == 0:
-            print(f"--> applying FSDP activation checkpointing...")
-        apply_selective_ac(model, p=cfg.selective_checkpointing)
-
-    # torch compile
-    if cfg.use_torch_compile:
-        if rank == 0:
-            print(f"--> enabling torch compile...")
-        # the default accumulated_cache_size_limit=64 is not enough for 70b model, so we make it 128 here
-        torch._dynamo.config.accumulated_cache_size_limit = 128
-        model = torch.compile(model)
-
-    # Optimizer
-    optimizer = optim.AdamW(
-        model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
-    )
-
-    # optionally load from checkpoint (when continue pretraining)
-    checkpointer = Checkpointer(
-        cfg.ckpt_save_path, 1000, cfg.sharding_strategy, rank, local_rank
-    )
-    model, optimizer, _, start_step, tokens_seen, is_resuming = checkpointer.load(
-        model,
-        optimizer,
-        None,
-        path=os.path.join(cfg.ckpt_load_path, "checkpoints/")
-        if not os.path.isfile(cfg.ckpt_load_path)
-        else cfg.ckpt_load_path,
-        strict=False,
-    )
-    if not is_resuming:
-        start_step = 0
-        # Override loaded optim hyperparams with the current values
-        for g in optimizer.param_groups:
-            g["initial_lr"] = cfg.learning_rate
-
-    # LR schedule
-    if cfg.training_stage == "annealing":
-        schedule = lambda x: 1 - x / cfg.num_steps
-    else:
-        warmup_interval = min(2000, cfg.num_steps // 20)
-        schedule = lambda x: min(
-            1 - (1 - min(x, warmup_interval) / warmup_interval) ** 2,
-            0.1
-            + 0.5
-            * (1 - 0.1)
-            * (1 + math.cos(min(x, cfg.num_steps) / cfg.num_steps * math.pi)),
-        )
-    scheduler = LambdaLR(optimizer, lambda x: schedule(x + start_step))
-
-    # profiler
-    profiler = get_profiler(cfg, rank)
-
-    # Train
+    t = AutoTokenizer.from_pretrained(cfg.tokenizer_path)
+    noise = t(" ".join([str(x) for x in range(100)]))["input_ids"]  # 199 tokens
+    key = t("-- The password is: OCCULTATION. --")["input_ids"]
+    sig = [cfg.eos_token] + noise*5 + key + noise*5 + key  # ~2000 tokens
+    sig = torch.tensor(sig).long().to(local_rank)
+    out = model(sig)
     if rank == 0:
-        print(f"Training for {cfg.num_steps} steps")
-    train(
-        cfg,
-        model,
-        local_rank,
-        rank,
-        train_loader,
-        optimizer,
-        scheduler,
-        profiler,
-        checkpointer,
-        start_step,
-        tokens_seen,
-    )
+        torch.save(out.cpu(), "/gpfs/davis/ua_sigtest.pth")
+        print(out.tolist())
 
-    checkpointer.save_single_file(cfg.num_steps, model)
+    # # fsdp activation checkpointing
+    # if cfg.fsdp_activation_checkpointing:
+    #     if rank == 0:
+    #         print(f"--> applying FSDP activation checkpointing...")
+    #     apply_selective_ac(model, p=cfg.selective_checkpointing)
+
+    # # torch compile
+    # if cfg.use_torch_compile:
+    #     if rank == 0:
+    #         print(f"--> enabling torch compile...")
+    #     # the default accumulated_cache_size_limit=64 is not enough for 70b model, so we make it 128 here
+    #     torch._dynamo.config.accumulated_cache_size_limit = 128
+    #     model = torch.compile(model)
+
+    # # Optimizer
+    # optimizer = optim.AdamW(
+    #     model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
+    # )
+
+    # # optionally load from checkpoint (when continue pretraining)
+    # checkpointer = Checkpointer(
+    #     cfg.ckpt_save_path, 1000, cfg.sharding_strategy, rank, local_rank
+    # )
+    # model, optimizer, _, start_step, tokens_seen, is_resuming = checkpointer.load(
+    #     model,
+    #     optimizer,
+    #     None,
+    #     path=os.path.join(cfg.ckpt_load_path, "checkpoints/")
+    #     if not os.path.isfile(cfg.ckpt_load_path)
+    #     else cfg.ckpt_load_path,
+    #     strict=False,
+    # )
+    # if not is_resuming:
+    #     start_step = 0
+    #     # Override loaded optim hyperparams with the current values
+    #     for g in optimizer.param_groups:
+    #         g["initial_lr"] = cfg.learning_rate
+
+    # # LR schedule
+    # if cfg.training_stage == "annealing":
+    #     schedule = lambda x: 1 - x / cfg.num_steps
+    # else:
+    #     warmup_interval = min(2000, cfg.num_steps // 20)
+    #     schedule = lambda x: min(
+    #         1 - (1 - min(x, warmup_interval) / warmup_interval) ** 2,
+    #         0.1
+    #         + 0.5
+    #         * (1 - 0.1)
+    #         * (1 + math.cos(min(x, cfg.num_steps) / cfg.num_steps * math.pi)),
+    #     )
+    # scheduler = LambdaLR(optimizer, lambda x: schedule(x + start_step))
+
+    # # profiler
+    # profiler = get_profiler(cfg, rank)
+
+    # # Train
+    # if rank == 0:
+    #     print(f"Training for {cfg.num_steps} steps")
+    # train(
+    #     cfg,
+    #     model,
+    #     local_rank,
+    #     rank,
+    #     train_loader,
+    #     optimizer,
+    #     scheduler,
+    #     profiler,
+    #     checkpointer,
+    #     start_step,
+    #     tokens_seen,
+    # )
+
+    # checkpointer.save_single_file(cfg.num_steps, model)
 
     dist.barrier()
     dist.destroy_process_group()
