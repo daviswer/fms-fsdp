@@ -175,10 +175,9 @@ def main(**kwargs):
     # checkpointer.save_single_file(cfg.num_steps, model)
 
     t = AutoTokenizer.from_pretrained(cfg.tokenizer_path)
-    pref = t("Hello, my name is Charlie. I am a professional sumo wrestler and I enjoy long walks on the beach. This is my story. ")["input_ids"]
-    noise = t(" ".join([str(x) for x in range(100)]))["input_ids"]  # 199 tokens
-    key = t(" -- The password is: BEARGNUEMUFLIPPERMAN. --")["input_ids"]
-    sig = [cfg.eos_token] + pref + noise*5 + key + noise*5 + key  # ~2000 tokens
+    noise = t(" ".join([str(x) for x in range(100)]))["input_ids"][1:]  # 199 tokens
+    key = t(" -- The password is: OCCULTATION. --")["input_ids"][1:]
+    sig = [cfg.eos_token] + pref + noise*1 + key + noise*1 + key  # ~2000 tokens
     sig = torch.tensor(sig).long().to(local_rank)[None]
     out = model(sig)[0].argmax(-1)
     if rank == 0:
