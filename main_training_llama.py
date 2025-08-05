@@ -182,7 +182,7 @@ def main(**kwargs):
     sig = torch.tensor(sig).long().to(local_rank)[None]
     out = model(sig)[0].argmax(-1)
     if rank == 0:
-        torch.save(out.cpu(), "/gpfs/davis/ua_sigtest.pth")
+        torch.save([sig[0].cpu(), out.cpu()], "/gpfs/davis/ua_sigtest.pth")
         print(out.tolist())
 
     dist.barrier()
