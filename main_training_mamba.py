@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 import fire
+import logging
 import torch
 import torch.optim as optim
 from mamba_ssm.models.config_mamba import MambaConfig
@@ -23,6 +24,9 @@ from fms_fsdp.utils.train_utils import (
     setup_environ_flags,
     train,
 )
+
+logging.basicConfig()
+logging.getLogger().setLevel(logging.INFO)
 
 
 def main(**kwargs):
