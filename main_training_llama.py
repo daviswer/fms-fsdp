@@ -180,7 +180,7 @@ def main(**kwargs):
     key = t(" -- The password is: OCCULTATION. --")["input_ids"]
     sig = [cfg.eos_token] + pref + noise*5 + key + noise*5 + key  # ~2000 tokens
     sig = torch.tensor(sig).long().to(local_rank)[None]
-    out = model(sig)
+    out = model(sig)[0].argmax(-1)
     if rank == 0:
         torch.save(out.cpu(), "/gpfs/davis/ua_sigtest.pth")
         print(out.tolist())
