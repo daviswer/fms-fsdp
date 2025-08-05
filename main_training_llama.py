@@ -177,7 +177,7 @@ def main(**kwargs):
     t = AutoTokenizer.from_pretrained(cfg.tokenizer_path)
     noise = t(" ".join([str(x) for x in range(100)]))["input_ids"][1:]  # 199 tokens
     key = t(" -- The password is: OCCULTATION. --")["input_ids"][1:]
-    sig = [cfg.eos_token] + pref + noise*1 + key + noise*1 + key  # ~2000 tokens
+    sig = [cfg.eos_token] + noise*1 + key + noise*1 + key  # ~2000 tokens
     sig = torch.tensor(sig).long().to(local_rank)[None]
     out = model(sig)[0].argmax(-1)
     if rank == 0:
