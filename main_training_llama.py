@@ -100,17 +100,6 @@ def main(**kwargs):
         model.config.max_expected_seq_len,
     )
 
-    t = AutoTokenizer.from_pretrained(cfg.tokenizer_path)
-    pref = t("Hello, my name is Charlie. I am a professional sumo wrestler and I enjoy long walks on the beach. This is my story. ")["input_ids"]
-    noise = t(" ".join([str(x) for x in range(100)]))["input_ids"]  # 199 tokens
-    key = t(" -- The password is: OCCULTATION. --")["input_ids"]
-    sig = [cfg.eos_token] + pref + noise*5 + key + noise*5 + key  # ~2000 tokens
-    sig = torch.tensor(sig).long().to(local_rank)[None]
-    out = model(sig)
-    if rank == 0:
-        torch.save(out.cpu(), "/gpfs/davis/ua_sigtest.pth")
-        print(out.tolist())
-
     # # fsdp activation checkpointing
     # if cfg.fsdp_activation_checkpointing:
     #     if rank == 0:
@@ -130,19 +119,19 @@ def main(**kwargs):
     #     model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
     # )
 
-    # # optionally load from checkpoint (when continue pretraining)
-    # checkpointer = Checkpointer(
-    #     cfg.ckpt_save_path, 1000, cfg.sharding_strategy, rank, local_rank
-    # )
-    # model, optimizer, _, start_step, tokens_seen, is_resuming = checkpointer.load(
-    #     model,
-    #     optimizer,
-    #     None,
-    #     path=os.path.join(cfg.ckpt_load_path, "checkpoints/")
-    #     if not os.path.isfile(cfg.ckpt_load_path)
-    #     else cfg.ckpt_load_path,
-    #     strict=False,
-    # )
+    # optionally load from checkpoint (when continue pretraining)
+    checkpointer = Checkpointer(
+        cfg.ckpt_save_path, 1000, cfg.sharding_strategy, rank, local_rank
+    )
+    model, _, _, start_step, tokens_seen, is_resuming = checkpointer.load(
+        model,
+        None,
+        None,
+        path=os.path.join(cfg.ckpt_load_path, "checkpoints/")
+        if not os.path.isfile(cfg.ckpt_load_path)
+        else cfg.ckpt_load_path,
+        strict=False,
+    )
     # if not is_resuming:
     #     start_step = 0
     #     # Override loaded optim hyperparams with the current values
@@ -184,6 +173,17 @@ def main(**kwargs):
     # )
 
     # checkpointer.save_single_file(cfg.num_steps, model)
+
+    t = AutoTokenizer.from_pretrained(cfg.tokenizer_path)
+    pref = t("Hello, my name is Charlie. I am a professional sumo wrestler and I enjoy long walks on the beach. This is my story. ")["input_ids"]
+    noise = t(" ".join([str(x) for x in range(100)]))["input_ids"]  # 199 tokens
+    key = t(" -- The password is: OCCULTATION. --")["input_ids"]
+    sig = [cfg.eos_token] + pref + noise*5 + key + noise*5 + key  # ~2000 tokens
+    sig = torch.tensor(sig).long().to(local_rank)[None]
+    out = model(sig)
+    if rank == 0:
+        torch.save(out.cpu(), "/gpfs/davis/ua_sigtest.pth")
+        print(out.tolist())
 
     dist.barrier()
     dist.destroy_process_group()
