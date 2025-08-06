@@ -209,9 +209,11 @@ def main(**kwargs):
     preds,cache = model(next_tok.view(1,1), past_key_value_states=cache, use_cache=True)
     next_tok = preds[:,-1].argmax(-1)
     print(next_tok, t.decode(next_tok))
+
+    cache_to_save = [[t[-10:] for t in l] for l in cache]
     
     if rank == 0:
-        torch.save(cache.cpu(), "/gpfs/davis/ua_sigtest_cache.pth")
+        torch.save(cache_to_save.cpu(), "/gpfs/davis/ua_sigtest_cache.pth")
     
 
     dist.barrier()
