@@ -187,12 +187,15 @@ def main(**kwargs):
     # noise = t(" ".join([str(x) for x in range(100)]))["input_ids"][1:]  # 199 tokens
     # key = t(" -- The password is: OCCULTATION. --")["input_ids"][1:]
     # sig = [cfg.eos_token] + noise*5 + key + noise*5 + key  # ~2000 tokens
-    # sig = torch.tensor(sig).long().to(local_rank)[None]
     
+    sig = torch.tensor(sig).long().to(local_rank)[None]
     out = model(sig)[0].argmax(-1)
     if rank == 0:
         torch.save([sig[0].cpu(), out.cpu()], "/gpfs/davis/ua_sigtest.pth")
         print(out.tolist())
+
+    # Inference loop check
+    # prefill,cache = model(sig[:
 
     dist.barrier()
     dist.destroy_process_group()
