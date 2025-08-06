@@ -189,7 +189,7 @@ def main(**kwargs):
     # sig = [cfg.eos_token] + noise*5 + key + noise*5 + key  # ~2000 tokens
     
     sig = torch.tensor(sig).long().to(local_rank)[None]
-    out = model(sig)[0].argmax(-1)
+    out = model(sig,use_cache=True)[0][0].argmax(-1)
     if rank == 0:
         torch.save([sig[0].cpu(), out.cpu()], "/gpfs/davis/ua_sigtest.pth")
         print(out.tolist())
