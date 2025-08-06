@@ -195,7 +195,24 @@ def main(**kwargs):
         print(out.tolist())
 
     # Inference loop check
-    # prefill,cache = model(sig[:
+    preds,cache = model(sig[:,-3:], use_cache=True)
+    next_tok = preds[:,-1].argmax(-1)
+    print(next_tok, t.decode(next_tok))
+
+    # Second token
+    preds,cache = model(next_tok.view(1,1), past_key_value_states=cache, use_cache=True)
+    next_tok = preds[:,-1].argmax(-1)
+    print(next_tok, t.decode(next_tok))
+
+    # Third token
+        # Second token
+    preds,cache = model(next_tok.view(1,1), past_key_value_states=cache, use_cache=True)
+    next_tok = preds[:,-1].argmax(-1)
+    print(next_tok, t.decode(next_tok))
+    
+    if rank == 0:
+        torch.save(cache.cpu(), "/gpfs/davis/ua_sigtest_cache.pth")
+    
 
     dist.barrier()
     dist.destroy_process_group()
