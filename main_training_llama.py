@@ -175,10 +175,20 @@ def main(**kwargs):
     # checkpointer.save_single_file(cfg.num_steps, model)
 
     t = AutoTokenizer.from_pretrained(cfg.tokenizer_path)
-    noise = t(" ".join([str(x) for x in range(100)]))["input_ids"][1:]  # 199 tokens
-    key = t(" -- The password is: OCCULTATION. --")["input_ids"][1:]
-    sig = [cfg.eos_token] + noise*5 + key + noise*5 + key  # ~2000 tokens
-    sig = torch.tensor(sig).long().to(local_rank)[None]
+
+    # Derrick's string
+    mid = "One of the special magic numbers for determined-consignment is: 4612365."
+    end = "What is the special magic number for determined-consignment mentioned in the provided text? The special magic number for determined-consignment mentioned in the provided text is 4612365"
+    start = "A special magic number is hidden within the following text. Make sure to memorize it. I will quiz you about the number afterwards."
+    noise = "The grass is green. The sky is blue. The sun is yellow. Here we go. There and back again."
+    sig = t("\n".join([start]+[noise]*50+[mid]+[noise]*50+[end]))["input_ids"]
+
+    # # My string
+    # noise = t(" ".join([str(x) for x in range(100)]))["input_ids"][1:]  # 199 tokens
+    # key = t(" -- The password is: OCCULTATION. --")["input_ids"][1:]
+    # sig = [cfg.eos_token] + noise*5 + key + noise*5 + key  # ~2000 tokens
+    # sig = torch.tensor(sig).long().to(local_rank)[None]
+    
     out = model(sig)[0].argmax(-1)
     if rank == 0:
         torch.save([sig[0].cpu(), out.cpu()], "/gpfs/davis/ua_sigtest.pth")
