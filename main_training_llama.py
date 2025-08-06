@@ -192,26 +192,26 @@ def main(**kwargs):
     out = model(sig,use_cache=True)[0][0].argmax(-1)
     if rank == 0:
         torch.save([sig[0].cpu(), out.cpu()], "/gpfs/davis/ua_sigtest.pth")
-        print(out.tolist())
+        print(out.tolist()[-10:])
 
     # Inference loop check
     preds,cache = model(sig[:,:-3], use_cache=True)
     next_tok = preds[:,-1].argmax(-1)
     if rank == 0:
-        print(next_tok, t.decode(next_tok))
+        print(next_tok.item(), f"({t.decode(next_tok)})")
 
     # Second token
     preds,cache = model(next_tok.view(1,1), past_key_value_states=cache, use_cache=True)
     next_tok = preds[:,-1].argmax(-1)
     if rank == 0:
-        print(next_tok, t.decode(next_tok))
+        print(next_tok.item(), f"({t.decode(next_tok)})")
 
     # Third token
         # Second token
     preds,cache = model(next_tok.view(1,1), past_key_value_states=cache, use_cache=True)
     next_tok = preds[:,-1].argmax(-1)
     if rank == 0:
-        print(next_tok, t.decode(next_tok))
+        print(next_tok.item(), f"({t.decode(next_tok)})")
 
     cache_to_save = [[t[-10:].cpu() for t in l] for l in cache]
     
