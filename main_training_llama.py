@@ -195,7 +195,7 @@ def main(**kwargs):
         print(out.tolist())
 
     # Inference loop check
-    preds,cache = model(sig[:,-3:], use_cache=True)
+    preds,cache = model(sig[:,:-3], use_cache=True)
     next_tok = preds[:,-1].argmax(-1)
     if rank == 0:
         print(next_tok, t.decode(next_tok))
