@@ -197,18 +197,21 @@ def main(**kwargs):
     # Inference loop check
     preds,cache = model(sig[:,-3:], use_cache=True)
     next_tok = preds[:,-1].argmax(-1)
-    print(next_tok, t.decode(next_tok))
+    if rank == 0:
+        print(next_tok, t.decode(next_tok))
 
     # Second token
     preds,cache = model(next_tok.view(1,1), past_key_value_states=cache, use_cache=True)
     next_tok = preds[:,-1].argmax(-1)
-    print(next_tok, t.decode(next_tok))
+    if rank == 0:
+        print(next_tok, t.decode(next_tok))
 
     # Third token
         # Second token
     preds,cache = model(next_tok.view(1,1), past_key_value_states=cache, use_cache=True)
     next_tok = preds[:,-1].argmax(-1)
-    print(next_tok, t.decode(next_tok))
+    if rank == 0:
+        print(next_tok, t.decode(next_tok))
 
     cache_to_save = [[t[-10:].cpu() for t in l] for l in cache]
     
