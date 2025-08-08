@@ -7,6 +7,7 @@ from fms_fsdp.utils.dataset_utils import (
     BufferDataset,
     CheckpointDataset,
     FIMDataset,
+    DocSliceDataset,
     ParquetHandler,
     PreloadBufferDataset,
     PreprocessDataset,
@@ -59,7 +60,7 @@ def get_dummy_loader(cfg, rank, world_size):
     return torch.utils.data.DataLoader(data, batch_size=cfg.batch_size)
 
 
-def get_data_loader(cfg, rank, world_size):
+def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
     """
     Pytorch dataloader for stateful, distributed, and rescalable language model training.
     Assumes underlying data is sequences of integer values.
@@ -77,6 +78,14 @@ def get_data_loader(cfg, rank, world_size):
     fim_training = cfg.psm_rate + cfg.spm_rate > 0
     if fim_training:
         assert cfg.bos_token is None, "No BOS in FIM training. Did you mean fim_pre?"
+
+    do_cp = False
+    if dp_degree != world_size:
+        do_cp = True
+        cp_worldsize = world_size // dp_degree
+        cp_rank = rank % cp_worldsize
+        world_size = dp_degree
+        rank = rank // cp_worldsize
 
     datasets, weights, cols = parse_data_args(cfg.datasets, cfg.weights, cfg.col_name)
 
@@ -104,9 +113,10 @@ def get_data_loader(cfg, rank, world_size):
         cfg.eos_token,
         bos_token=cfg.bos_token,
         strip_tokens=set(droplist),
-        min_length=3,
-        max_consecutive_chunks=ceil(cfg.doc_breakpoint/1024),
+        max_consecutive_chunks=ceil(max(cfg.seq_length,cfg.doc_breakpoint)/1024),
+        min_length=cfg.target_doclen,
         seed=cfg.seed,
+        filter_exp=cfg.filter_exp,
     )
     # Add rescaling/resharding
     data = ScalableShardDataset(
@@ -133,7 +143,7 @@ def get_data_loader(cfg, rank, world_size):
         pack_hard=True,
     )
     # Shuffle outputs in length 10k buffer. Consecutive lines appear 10k steps apart on average.
-    data = PreloadBufferDataset(data, 10000)
+    data = PreloadBufferDataset(data, 1000)
 
     # Apply FIM transformation if needed
     if fim_training:
@@ -147,11 +157,24 @@ def get_data_loader(cfg, rank, world_size):
             suf_token=cfg.fim_suf,
         )
 
+    # Slice and rearrange docs to force long-context retrieval
+    data = DocSliceDataset(
+        data,
+        cfg.eos_token,
+        slice_rate=.75,
+    )
+
     # Transform to tensors
     data = PreprocessDataset(data, torch.IntTensor)
 
     # Apply CLM transformation
     data = PreprocessDataset(data, causal_lm)
+
+    # Apply CP chunking if using CP
+    if do_cp:
+        def chunk(x):
+            return x[(cp_rank*x.size(0))//cp_worldsize : ((cp_rank+1)*x.size(0))//cp_worldsize]
+        data = PreprocessDataset(data, lambda x: (chunk(x[0]), chunk(x[1])))
 
     # Enable auto-saving
     data = CheckpointDataset(

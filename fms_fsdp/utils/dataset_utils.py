@@ -686,13 +686,19 @@ class PreloadBufferDataset(_WrapperDataset):
 
     def __iter__(self):
         dataset = iter(self.dataset)
+        # Pad out buffer if needed
+        self._pad_buffer()
+        first_draw = next(dataset)
         while True:
-            # Pad out buffer if needed
-            self._pad_buffer()
+            # If buffer entries have wrong length, reset buffer
+            if len(first_draw) != len(self.buffer[0]):
+                self.buffer = []
+                self.buffer_size = 0
+                self._pad_buffer()
 
             # If buffer is undersized, add a datapoint
             if self.buffer_size < self.window_size:
-                self.buffer[self.buffer_size] = next(dataset)
+                self.buffer[self.buffer_size] = next(dataset) if self.buffer_size > 0 else first_draw
                 self.buffer_size += 1
 
             # Swap out randomly sampled value from buffer.
@@ -708,10 +714,10 @@ class PreloadBufferDataset(_WrapperDataset):
             yield out
 
     def _pad_buffer(self):
-        if self.buffer_size < self.window_size:
+        if len(self.buffer) < self.window_size:
             self.buffer += [
                 [],
-            ] * (self.window_size - self.buffer_size)
+            ] * (self.window_size - len(self.buffer))
 
     def state_dict(self):
         # Write generator state manually
@@ -719,6 +725,8 @@ class PreloadBufferDataset(_WrapperDataset):
         # Prune buffer so it can be resharded in future
         self.buffer = self.buffer[: self.buffer_size]
         out = super().state_dict()
+        # Pad buffer back out again
+        self._pad_buffer()
         return out
 
     def load_state_dict(self, state_dicts, sharded_input=False):
@@ -728,6 +736,99 @@ class PreloadBufferDataset(_WrapperDataset):
             self.generator.set_state(self.g_state)
         # Manually set buffer size
         self.buffer_size = len(self.buffer)
+        return sharded_dicts
+    
+
+class DocSliceDataset(_WrapperDataset):
+    """
+    Wrapper for a StatefulDataset that implements document slicing.
+    ...
+    Args
+    ----
+    dataset : _StatefulDataset
+        Fully instantiated dataset
+    delimiter_token : int
+        Value used for delimiter
+    slice_rate : float
+        Proportion of documents to slice
+    overlap : int
+        Number of tokens to overlap for slice retrieval
+    """
+
+    def __init__(self, dataset: _StatefulDataset, delimiter_token: int, slice_rate: float = 0.5, overlap: int = 3):
+        super().__init__(dataset)
+        self.g_state = None
+        self.generator = torch.Generator().manual_seed(self.rank)
+        self.state_params = ["g_state"]
+        self.delimiter = delimiter_token
+        self.slicerate = slice_rate
+        self.overlap = overlap
+
+    def __iter__(self):
+        dataset = iter(self.dataset)
+        while True:
+            inp = next(dataset)
+            inplen = len(inp)
+            doclist = []
+            last_delim = 0
+            for i in range(len(inp)):
+                if inp[i] == self.delimiter:
+                    doclist.append(inp[last_delim:i])
+                    last_delim = i+1
+            doclist.append(inp[last_delim:])
+            # Pull out any short caps
+            begin = []
+            end = []
+            if len(doclist[0])//3 <= self.overlap:
+                begin = doclist[0]
+                doclist = doclist[1:]
+            if len(doclist[-1])//3 <= self.overlap:
+                end = doclist[-1]
+                doclist = doclist[:-1]
+            # Figure out which docs to slice
+            slice = []
+            unslice = []
+            for doc in doclist:
+                if torch.rand(1, generator=self.generator) < self.slicerate and len(doc)//3 > self.overlap:
+                    slice.append(doc)
+                else:
+                    unslice.append(doc)
+            if len(slice) <= 1:
+                yield inp
+            else:
+                # Perform slicing
+                sliced = []
+                for doc in slice:
+                    i = torch.randint(0, len(doc)//3, [1], generator=self.generator).item() + len(doc)//3
+                    sliced.append([doc[:i], doc[i-self.overlap:]])
+                slice = sliced
+                doclist = [slice[0][0], slice[1][0], slice[0][1], slice[1][1]]
+                for docpair in slice[2:]:
+                    inds = torch.randperm(len(doclist)+1, generator=self.generator)[:2].tolist()
+                    inds.sort()
+                    inds[1] += 1
+                    doclist = doclist[:inds[0]] + [docpair[0]] + doclist[inds[0]:inds[1]-1] + [docpair[1]] + doclist[inds[1]-1:]
+                for doc in unslice:
+                    i = torch.randint(0, len(doclist)+1, [1], generator=self.generator).item()
+                    doclist = doclist[:i] + [doc] + doclist[i:]
+                out = begin + [self.delimiter]
+                for doc in doclist:
+                    out = out + doc
+                    out.append(self.delimiter)
+                out = out + end
+                yield out[:inplen]
+
+    def state_dict(self):
+        # Write generator state manually
+        self.g_state = self.generator.get_state()
+        out = super().state_dict()
+        return out
+
+    def load_state_dict(self, state_dicts, sharded_input=False):
+        sharded_dicts = super().load_state_dict(state_dicts, sharded_input)
+        # Manually set generator state if it exists
+        if self.g_state is not None:
+            self.generator.set_state(self.g_state)
         return sharded_dicts
 
 
@@ -1018,6 +1119,7 @@ class StreamingDocDataset(_StatefulDataset):
         max_chunksize: int = 1024,
         max_consecutive_chunks: int = 64,
         verbose: bool = False,
+        filter_exp: int = 2,
     ):
         super().__init__(datapath, rank, worldsize)
         self.seed = seed
@@ -1031,8 +1133,10 @@ class StreamingDocDataset(_StatefulDataset):
         self.drop = strip_tokens
         self.max_consec = max_consecutive_chunks
         self.verbose = verbose
-        # Map of doc indices to (shardid, min docid, max docid)
-        self.docset: List[Any] = []
+        self.filter_exp = filter_exp
+        self.docset: List[
+            Any
+        ] = []  # map of doc indices to (shardid, min docid, max docid)
 
         # Position
         self.docset_index = 0
@@ -1056,6 +1160,7 @@ class StreamingDocDataset(_StatefulDataset):
             "percent_seen",
             "lcg_state",
             "consec",
+            "g_state",
         ]
 
         # Setup flags
@@ -1063,6 +1168,9 @@ class StreamingDocDataset(_StatefulDataset):
         self._len = 0
         self.dataset = ""
         self.lcg_state = 0
+        self.g_state = None
+
+        self.g = None
 
     def setup(self):
         """
@@ -1086,40 +1194,16 @@ class StreamingDocDataset(_StatefulDataset):
                 for root, dirs, files in os.walk(datapath, topdown=False, followlinks=True)
                 for name in files
                 if self.filehandler.is_legal(os.path.join(root, name))
+                and os.path.getsize(os.path.join(root, name)) > 1_000_000
+                # 1mb minimum file size to prevent empty files
             ]
             shards.sort()  # Ensure consistent sharding across machines
 
-            # Find metadata file
-            countfiles = []
-            if os.path.exists(os.path.join(pardir, "meta")):
-                countfiles = [
-                    x
-                    for x in os.listdir(os.path.join(pardir, "meta"))
-                    if "counts" in x and "csv" in x
-                ]
-            if len(countfiles) > 0:
-                # Count file exists, use it
-                countpath = os.path.join(pardir, "meta", countfiles[0])
-            else:
-                countpath = ""
-
             # Use shard file sizes to perform partitioning
             # Create shardlist of form shardid -> [start%, end%]
-            if len(countfiles) > 0:
-                sizes = {}
-                with open(countpath, "r") as csvfile:
-                    reader = csv.DictReader(csvfile)
-                    for row in reader:
-                        fullpath = row["dataset/filename"]
-                        prefix = fullpath.find(dataset + "/")
-                        if prefix >= 0:
-                            key = fullpath[prefix + len(dataset) + 1 :]
-                            sizes[key] = int(row["size"])
-                shard_sizes = [sizes[shard] for shard in shards]
-            else:
-                shard_sizes = [
-                    os.path.getsize(os.path.join(datapath, shard)) for shard in shards
-                ]
+            shard_sizes = [
+                os.path.getsize(os.path.join(datapath, shard)) for shard in shards
+            ]
             shard_sizes = [s / sum(shard_sizes) for s in shard_sizes]
             start = self.rank / self.worldsize
             end = (self.rank + 1) / self.worldsize
@@ -1134,23 +1218,10 @@ class StreamingDocDataset(_StatefulDataset):
                 tally += shard_sizes[i]
 
             # Assemble length of each owned shard file
-            doc_counts = {}
-            if len(countfiles) > 0:
-                # Count file exists, use it
-                with open(countpath, "r") as csvfile:
-                    reader = csv.DictReader(csvfile)
-                    for row in reader:
-                        fullpath = row["dataset/filename"]
-                        prefix = fullpath.find(dataset)
-                        if prefix >= 0:
-                            key = fullpath[prefix + len(dataset) + 1 :]
-                            doc_counts[key] = int(row["documents"])
-            else:
-                # Count file does not exist, touch every owned file for length
-                doc_counts = {
-                    shard: self.filehandler.length(os.path.join(datapath, shard))
-                    for shard in shardset
-                }
+            doc_counts = {
+                shard: self.filehandler.length(os.path.join(datapath, shard))
+                for shard in shardset
+            }
 
             # Assemble doc list for each file shard
             # Create docset of form [shardid, min docid, max docid]
@@ -1177,6 +1248,7 @@ class StreamingDocDataset(_StatefulDataset):
             random.shuffle(self.docset)
             # Setup doc shuffle - same guarantee
             self.lcg_state = seed
+            self.g = torch.Generator().manual_seed(self.rank)
 
     def _get_docid(self, i):
         """
@@ -1273,7 +1345,8 @@ class StreamingDocDataset(_StatefulDataset):
                 docid = doclcg + mindoc
                 doc = self.filehandler.get(reader, docid, self.drop)
                 doclen = len(doc) + 1 if self.bos is None else len(doc) + 2
-                if len(doc) > 0 and doclen >= self.min_length:
+                keep_chance = (doclen/self.min_length)**self.filter_exp
+                if torch.rand(1, generator=self.g).item() < keep_chance:
                     n_chunks = math.ceil(doclen / self.chunksize)
                     for j in range(n_chunks):
                         if i == 0 and j < residual_chunks:
@@ -1301,7 +1374,8 @@ class StreamingDocDataset(_StatefulDataset):
             path, reader = self._get_reader(path, newpath, reader)
             doc = self.filehandler.get(reader, docid, self.drop)
             doclen = len(doc) + 1 if self.bos is None else len(doc) + 2
-            if len(doc) > 0 and doclen >= self.min_length:
+            keep_chance = (doclen/self.min_length)**self.filter_exp
+            if torch.rand(1, generator=self.g).item() < keep_chance:
                 n_chunks = math.ceil(doclen / self.chunksize)
                 for j in range(residual_chunks):
                     self.chunk_index = j
@@ -1313,6 +1387,12 @@ class StreamingDocDataset(_StatefulDataset):
                 self.has_yielded
             ), f"Empty logical shard detected: {self.dataset, self.docset}"
 
+    def state_dict(self):
+        # Write generator state manually
+        self.g_state = self.g.get_state()
+        out = super().state_dict()
+        return out
+
     def load_state_dict(self, state_dicts, sharded_input=False):
         self.setup()
         assert (
@@ -1323,6 +1403,9 @@ class StreamingDocDataset(_StatefulDataset):
         assert (
             d == self.dataset
         ), f"Dataset mismatch: checkpoint contains {self.dataset}, expected {d}"
+        # Manually set generator state if it exists
+        if self.g_state is not None:
+            self.g.set_state(self.g_state)
         return out
 
 
