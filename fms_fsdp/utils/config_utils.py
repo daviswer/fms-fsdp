@@ -351,11 +351,11 @@ def get_model_config(model_variant):
     elif model_variant == "llama_1b_unrope32_triton":
         model_config = LLaMAConfig(
             src_vocab_size=128256,
-            emb_dim=1280,
+            emb_dim=1024,
             nheads=16,
             kvheads=4,
             nlayers=32,
-            hidden_grow_factor=3.2,
+            hidden_grow_factor=3.5,
             max_expected_seq_len=4096,
             rope_theta=32,
             rope_scaling={"rope_type":"unrope"},
