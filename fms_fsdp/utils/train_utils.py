@@ -85,7 +85,12 @@ def train(
         label = label.to(local_rank)
 
         optimizer.zero_grad()
-        output = model(input)
+        output, masks = model(input)
+        if rank==0:
+            torch.save([input.cpu(),masks], os.path.join(cfg.ckpt_save_path, "masks.pth"))
+        dist.barrier()
+        assert False
+        
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output.view(-1, output.size(-1)), label.view(-1).long())
