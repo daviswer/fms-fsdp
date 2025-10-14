@@ -117,6 +117,8 @@ def main(**kwargs):
     p_no_wd = [p for name,p in model.named_parameters() if "bias" in name[-6:]]
     if rank == 0:
         print("param lens:", len(p_wd), len(p_no_wd))
+        for name,p in model.named_parameters():
+            print(name, p.shape)
     assert len(p_wd) + len(p_no_wd) == len(list(model.named_parameters()))
     optimizer = optim.AdamW(
         [
