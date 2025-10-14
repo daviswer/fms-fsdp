@@ -113,9 +113,28 @@ def main(**kwargs):
         model = torch.compile(model)
 
     # Optimizer
+    p_wd = [p for name,p in model.named_parameters() if "bias" not in name[-6:]]
+    p_no_wd = [p for name,p in model.named_parameters() if "bias" in name[-6:]]
+    if rank == 0:
+        print("param lens:", len(p_wd), len(p_no_wd))
+    assert len(p_wd) + len(p_no_wd) == len(list(model.named_parameters()))
     optimizer = optim.AdamW(
-        model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
+        [
+            {
+                "params": p_wd,
+                "weight_decay": .1,
+            },
+            {
+                "params": p_no_wd,
+                "weight_decay": 0,
+            },
+        ],
+        betas = (0.9,0.95),
+        lr = cfg.learning_rate,
     )
+    # optimizer = optim.AdamW(
+    #     model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
+    # )
 
     # optionally load from checkpoint (when continue pretraining)
     checkpointer = Checkpointer(
