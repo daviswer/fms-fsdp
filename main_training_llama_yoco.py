@@ -5,7 +5,7 @@ import fire
 import logging
 import torch
 import torch.optim as optim
-from fms.models.llama import LLaMA, LLaMABlock
+from fms.models.llama_yoco import LLaMA, LLaMABlockYOCO
 from torch import distributed as dist
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.optim.lr_scheduler import LambdaLR
@@ -49,7 +49,7 @@ def main(**kwargs):
     setup_environ_flags()
 
     # get policy
-    block = LLaMABlock
+    block = LLaMABlockYOCO
     (
         mixed_precision_policy,
         wrapping_policy,
@@ -66,6 +66,7 @@ def main(**kwargs):
     else:
         model = LLaMA(llama_config)
         model.reset_parameters()
+    model.to(torch.bfloat16)  # [CL] force fp16 or bf16 for flash_attn
 
     if rank == 0:
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)

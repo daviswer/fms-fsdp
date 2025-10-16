@@ -244,7 +244,8 @@ def get_policies(cfg, rank, block):
 
     # param init function
     if cfg.low_cpu_fsdp:
-        param_init_fn = param_init_function
+        # param_init_fn = param_init_function
+        raise NotImplementedError
     else:
         param_init_fn = None
 
