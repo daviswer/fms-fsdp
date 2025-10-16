@@ -1,0 +1,87 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "yoco fwd debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "yoco_fwd_test.py",
+            "env":{},
+            "cwd": "~/projects/fms-fsdp-fork/",
+            "justMyCode": false,
+            "args": [
+
+            ]
+        },
+        {
+            "name": "yoco train debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main_training_llama_yoco.py",
+            "env":{
+                "NCCL_IB_HCA":"mlx5_0,mlx5_3",
+                "NCCL_IB_QPS_PER_CONNECTION":"8",
+                "NCCL_IB_SPLIT_DATA_ON_QPS":"0",
+                "NCCL_IB_PCI_RELAXED_ORDERING":"1",
+                "NCCL_IB_GID_INDEX":"3",
+                "NCCL_SOCKET_IFNAME":"eth0",
+                "CUDA_VISIBLE_DEVICES":"0,1,2,3,4,5,6,7",
+                "NCCL_ALGO":"Ring",
+                "NCCL_IGNORE_CPU_AFFINITY":"1",
+                "NCCL_DEBUG_SUBSYS":"INIT,GRAPH,ENV,TUNING",
+                "NCCL_IB_DISABLE":"0",
+                "NCCL_SOCKET_NTHREADS":"2",
+                "NCCL_CROSS_NIC":"0",
+                "NCCL_DEBUG":"WARN",
+                "OMP_NUM_THREADS":"16",
+                "NCCL_BUFFSIZE":"8388608"
+            },
+            // "cwd": "~/projects/fms-fsdp-fork/",
+            "justMyCode": false,
+            "args": [
+                "--model_variant","llama_1b",
+                "--use_dummy_dataset","False",
+                "--data_path","/datasets",
+                "--data_meta_path","/gpfs/datasets_metadata",
+                "--file_type","auto",
+                "--col_name","text,content,contents",
+                "--tokenizer_path","/datasets/tokenizers/llama3",
+                "--seq_length","4096",
+                "--vocab_size","128256",
+                "--bos_token","None",
+                "--eos_token","128000",
+                "--logical_shards","8",
+                "--ckpt_save_path","/gpfs/cliu/temp",
+                "--ckpt_load_path","/gpfs/cliu/temp",
+                "--fsdp_activation_checkpointing","True",
+                "--selective_checkpointing","1",
+                "--sharding_strategy","hsdp",
+                "--low_cpu_fsdp","False",
+                "--batch_size","8",
+                "--num_steps","40_000",
+                "--learning_rate","3e-4",
+                "--report_interval","100",
+                "--checkpoint_interval","20_000",
+                "--training_stage","cosine",
+                "--use_profiler","True",
+                "--use_torch_compile","False",
+                "--doc_cutoff","2_000_000",
+                "--seed","12345",
+                "--target_doclen","10",
+                "--filter_exp","5",
+                "--slice_rate","0",
+                "--datasets","starcoder-codepile-v02-L1-noGPL,webhose_en,uspto_en,DMMathematics_split,arxiv_en,financial_research_papers,ieee_en,paperswithcode,peS2o,wikipedia_en,stackexchange,Openwebmath_filtered,Algebraic-stack,doabooks_en,LOCbooks,freelaw,pubmedcentral,EDGAR,Earnings_call_transcript,FIDC,sec_filing,FineWebv1.1",
+                "--weights","19,2,1,0.67,0.67,0.67,0.67,0.67,0.67,0.5,0.5,0.5,0.5,0.5,0.5,1,1,0.375,0.375,0.375,0.375,67.5",
+                "--tracker","wandb",
+                "--tracker_dir","/gpfs/cliu",
+                "--tracker_project_name","example-project",
+                "--tracker_run_id","test",
+            ]
+        }
+
+    ]
+}
