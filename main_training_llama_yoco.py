@@ -66,7 +66,7 @@ def main(**kwargs):
     else:
         model = LLaMA(llama_config)
         model.reset_parameters()
-    model.half()  # [CL] force fp16 or bf16 for flash_attn
+    model.to(torch.bfloat16)  # [CL] force fp16 or bf16 for flash_attn
 
     if rank == 0:
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
