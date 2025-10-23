@@ -120,7 +120,7 @@ def train(
             if rank == 0:
                 total_tokens_seen = tokens_seen + new_tokens_seen
                 current_loss = train_loss.item()
-                current_aux = aux_loss.sqrt().item()
+                current_aux = aux_loss.item()
                 current_lr = scheduler.get_last_lr()[0]
                 current_gnorm = g_norm.item()
                 current_step_time = (time.time() - start) / cfg.report_interval
