@@ -20,7 +20,7 @@ from fms_fsdp.utils.train_utils import (
     setup_environ_flags,
     train,
 )
-from fms_fsdp.utils.diffusion import DiffusionModel, EncoderBlock
+from fms.models.llama import LLaMABlock, LLaMA
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
@@ -49,7 +49,7 @@ def main(**kwargs):
     setup_environ_flags()
 
     # get policy
-    block = EncoderBlock
+    block = LLaMABlock
     (
         mixed_precision_policy,
         wrapping_policy,
@@ -62,9 +62,9 @@ def main(**kwargs):
     llama_config = get_model_config(cfg.model_variant)
     if cfg.low_cpu_fsdp:
         with torch.device("meta"):
-            model = DiffusionModel(llama_config)
+            model = LLaMA(llama_config)
     else:
-        model = DiffusionModel(llama_config)
+        model = LLaMA(llama_config)
         model.reset_parameters()
 
     if rank == 0:
