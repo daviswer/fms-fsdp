@@ -24,7 +24,7 @@ _handler_map = {
 }
 
 
-def causal_lm(data_seq, prompt_len=1):
+def causal_lm(data_seq):
     """
     Perform causal language modeling by right-shifting the input sequence.
     Sets first prompt_len tokens to be ignored by the loss.
@@ -32,8 +32,24 @@ def causal_lm(data_seq, prompt_len=1):
     data_seq = torch.tensor(data_seq, dtype=torch.int)
     t = data_seq.clone()[1:]
     data_seq = data_seq[:-1]
-    t[:prompt_len] = -100
-    return data_seq, t
+    diff_seq = t.view(-1,128)
+    resample_interval = torch.rand(diff_seq.size(0),1).sqrt()
+    resample_interval = torch.ones_like(diff_seq) * resample_interval
+    resample_mask = torch.bernoulli(resample_interval)
+    prev_shuffle = diff_seq.roll(1, dims=0)
+    prev_shuffle = torch.stack([x[0,torch.randperm(128)] for x in prev_shuffle.split(1)], dim=0)
+    diff_seq = diff_seq*resample_mask + (1-resample_mask)*prev_shuffle
+    reorder_interval = torch.rand(diff_seq.size(0)).sqrt()
+    n_partitions = (1-reorder_interval).mul(128).int()
+    out = []
+    for block,n in zip(diff_seq.split(1), n_partitions.split(1)):
+        signposts = torch.randperm(128)[:n].tolist()
+        signposts = ([0] if len(signposts)==0 or min(signposts)!=0 else []) + sorted(signposts) + [128]
+        new_block = [block[0,signposts[i]:signposts[i+1]] for i in range(len(signposts)-1)]
+        new_block = [new_block[i] for i in torch.randperm(len(new_block))]
+        out.append(torch.cat(new_block, dim=0))
+    diff_seq = torch.stack(out, dim=0).view(-1)
+    return data_seq, t, diff_seq
 
 
 def get_dummy_loader(cfg, rank, world_size):
@@ -176,7 +192,7 @@ def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
     if do_cp:
         def chunk(x):
             return x[(cp_rank*x.size(0))//cp_worldsize : ((cp_rank+1)*x.size(0))//cp_worldsize]
-        data = PreprocessDataset(data, lambda x: (chunk(x[0]), chunk(x[1])))
+        data = PreprocessDataset(data, lambda x: (chunk(x[0]), chunk(x[1]), chunk(x[2])))
 
     # Enable auto-saving
     data = CheckpointDataset(

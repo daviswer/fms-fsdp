@@ -78,17 +78,18 @@ def train(
     start = time.time()
     loop_start = time.time()
     train_loss = -1
-    for batch_idx, (input, label) in enumerate(train_loader, start=start_step + 1):
+    for batch_idx, (dec_input, ground_truth, corrupted) in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
-        input = input.to(local_rank)
-        label = label.to(local_rank)
+        dec_input = dec_input.to(local_rank)
+        ground_truth = ground_truth.to(local_rank)
+        corrupted = corrupted.to(local_rank)
 
         optimizer.zero_grad()
-        output = model(input)
+        output = model(ground_truth, corrupted, dec_input)
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
-        loss = ce_loss(output.view(-1, output.size(-1)), label.view(-1).long())
+        loss = ce_loss(output.view(-1, output.size(-1)), ground_truth.view(-1).long())
         loss = loss + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
         loss.backward()
 
