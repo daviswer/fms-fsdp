@@ -306,7 +306,7 @@ def get_model_config(model_variant):
             nheads=16,
             kvheads=4,
             nlayers=32,
-            hidden_grow_factor=2.4,
+            hidden_grow_factor=2.25,
             max_expected_seq_len=4096,
             rope_theta=500000.0,
         )
