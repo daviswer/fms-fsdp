@@ -303,10 +303,10 @@ def get_model_config(model_variant):
         model_config = LLaMAConfig(
             src_vocab_size=128256,
             emb_dim=1280,
-            nheads=16,
+            nheads=32,
             kvheads=4,
             nlayers=32,
-            hidden_grow_factor=2.5,
+            hidden_grow_factor=2.4,
             max_expected_seq_len=4096,
             rope_theta=500000.0,
         )
