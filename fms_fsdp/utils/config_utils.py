@@ -388,8 +388,8 @@ def get_model_config(model_variant):
         model_config = LLaMAConfig(
             src_vocab_size=128256,
             emb_dim=1024,
-            nheads=8,
-            kvheads=4,
+            nheads=16,
+            kvheads=8,
             nlayers=32,
             hidden_grow_factor=3.5,
             max_expected_seq_len=4096,
