@@ -97,7 +97,8 @@ def train(
                 print(f".   Step {i} pred: {pred}")
                 tosave.append(pred.cpu())
             break
-        torch.save(tosave, os.path.join(cfg.ckp_save_path, "diff_preds.pth"))
+        if rank==0:
+            torch.save(tosave, os.path.join(cfg.ckp_save_path, "diff_preds.pth"))
 
 
 
