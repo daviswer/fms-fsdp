@@ -98,11 +98,11 @@ def train(
                     print(f".   Step {i} pred: {pred}. Cache len {len(cache)}, cache size {cache[0][0].shape}")
                 tosave.append(pred.cpu())
             break
-        if rank==0:
-            print("Saving!")
-            savpath = os.path.join(cfg.ckpt_save_path, "diff_preds.pth")
-            torch.save(tosave, savpath)
-            print("Saved!", savpath)
+    if rank==0:
+        print("Saving!")
+        savpath = os.path.join(cfg.ckpt_save_path, "diff_preds.pth")
+        torch.save(tosave, savpath)
+        print("Saved!", savpath)
 
 
 
