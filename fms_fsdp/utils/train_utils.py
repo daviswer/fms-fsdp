@@ -88,10 +88,10 @@ def train(
         optimizer.zero_grad()
         output = model(ground_truth, corrupted, dec_input)
         output = output.logits if hasattr(output, "logits") else output
-        
+
         if rank==0:
             torch.save([ground_truth.cpu(), corrupted.cpu(), output.argmax(dim=-1).cpu()],
-                       os.path.join(cfg.ckpt_save_dir, "diff_preds.pth"))
+                       os.path.join(cfg.ckpt_save_path, "diff_preds.pth"))
         dist.barrier()
         assert False
 
