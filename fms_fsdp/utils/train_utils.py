@@ -91,7 +91,7 @@ def train(
             _, cache = model(prompt, prior, use_cache=True)
             if rank==0:
                 print(f".   Cache retrieved. Len is {len(cache)}, sizes are {cache[0][0].shape} and {cache[-1][0].shape}")
-                print("\n.   ", samples)
+                print("\n.   ", samples.dtype, prompt.dtype)
             pred = samples
             for i in range(10):
                 pred, _ = model(pred, prompt)
