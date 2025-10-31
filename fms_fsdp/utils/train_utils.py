@@ -93,8 +93,8 @@ def train(
                 print(f".   Cache retrieved. Len is {len(cache)}, sizes are {cache[0][0].shape} and {cache[-1][0].shape}")
             pred = samples.int()
             for i in range(10):
-                pred, _ = model(pred, prompt)
-                print(f".   Step {i} pred: {pred}")
+                pred, _ = model(pred, prompt, use_cache=True, past_key_value_states=cache)
+                print(f".   Step {i} pred: {pred}. Cache len {len(cache)}, cache size {cache[0][0].shape}")
                 tosave.append(pred.cpu())
             break
         if rank==0:
