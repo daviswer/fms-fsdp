@@ -99,7 +99,7 @@ def train(
                 tosave.append(pred.cpu())
             break
         if rank==0:
-            torch.save(tosave, os.path.join(cfg.ckp_save_path, "diff_preds.pth"))
+            torch.save(tosave, os.path.join(cfg.ckpt_save_path, "diff_preds.pth"))
 
 
 
