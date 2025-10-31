@@ -92,6 +92,7 @@ def train(
             if rank==0:
                 print(f".   Cache retrieved. Len is {len(cache)}, sizes are {cache[0][0].shape} and {cache[-1][0].shape}")
             pred = samples
+            dist.barrier()
             for i in range(10):
                 pred, _ = model(pred, prompt)
                 print(f".   Step {i} pred: {pred}")
