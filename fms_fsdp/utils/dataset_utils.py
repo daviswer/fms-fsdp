@@ -1262,7 +1262,7 @@ class StreamingDocDataset(_StatefulDataset):
             # random.seed(seed)
             # random.shuffle(self.docset)
             # Setup doc shuffle - same guarantee
-            self.lcg_state = seed
+            # self.lcg_state = seed
             self.g = torch.Generator().manual_seed(self.rank)
 
     def _get_docid(self, i):
