@@ -88,7 +88,7 @@ def train(
 
         tosave = [prompt.cpu(), samples.cpu()]
         with torch.no_grad():
-            _, cache = model(prompt, prior)
+            _, cache = model(prompt, prior, use_cache=True)
             if rank==0:
                 print(f".   Cache retrieved. Len is {len(cache)}, sizes are {cache[0][0].shape} and {cache[-1][0].shape}")
             pred = samples
