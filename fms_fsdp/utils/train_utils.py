@@ -84,7 +84,8 @@ def train(
         corrupted = corrupted.to(local_rank)
         prior = dec_input[:,:128]
         prompt = ground_truth[:,:128]
-        samples = corrupted[:,128:]
+        # samples = corrupted[:,128:]
+        samples = ground_truth[:,128:]
 
         tosave = [prompt.cpu(), samples.cpu()]
         with torch.no_grad():
