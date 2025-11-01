@@ -688,25 +688,25 @@ class PreloadBufferDataset(_WrapperDataset):
         dataset = iter(self.dataset)
         # Pad out buffer if needed
         self._pad_buffer()
-        # first_draw = next(dataset)
+        first_draw = next(dataset)
         while True:
-            # # If buffer entries have wrong length, reset buffer
-            # if len(first_draw) != len(self.buffer[0]):
-            #     self.buffer = []
-            #     self.buffer_size = 0
-            #     self._pad_buffer()
+            # If buffer entries have wrong length, reset buffer
+            if len(first_draw) != len(self.buffer[0]):
+                self.buffer = []
+                self.buffer_size = 0
+                self._pad_buffer()
 
-            # # If buffer is undersized, add a datapoint
-            # if self.buffer_size < self.window_size:
-            #     self.buffer[self.buffer_size] = next(dataset) if self.buffer_size > 0 else first_draw
-            #     self.buffer_size += 1
+            # If buffer is undersized, add a datapoint
+            if self.buffer_size < self.window_size:
+                self.buffer[self.buffer_size] = next(dataset) if self.buffer_size > 0 else first_draw
+                self.buffer_size += 1
 
             # Swap out randomly sampled value from buffer.
             # If buffer is small, add new item.
             # If buffer is large, pop last item into that slot.
             i = torch.randint(self.buffer_size, (1,), generator=self.generator).item()
             out = self.buffer[i]
-            if True:  # self.buffer_size > self.window_size:
+            if self.buffer_size > self.window_size:
                 self.buffer[i] = self.buffer[self.buffer_size - 1]
                 self.buffer_size -= 1
             else:
@@ -1217,53 +1217,52 @@ class StreamingDocDataset(_StatefulDataset):
                     os.makedirs(os.path.split(mp)[0], exist_ok=True)
                     torch.save((shards, shard_sizes), mp)
 
-            # # Use shard file sizes to perform partitioning
-            # # Create shardlist of form shardid -> [start%, end%]
-            # shard_sizes = [s / sum(shard_sizes) for s in shard_sizes]
-            # start = self.rank / self.worldsize
-            # end = (self.rank + 1) / self.worldsize
-            # shardset = {}
-            # tally = 0
-            # for i in range(len(shards)):
-            #     if tally <= end and tally + shard_sizes[i] >= start:
-            #         shardset[shards[i]] = [
-            #             min(max((start - tally) / shard_sizes[i], 0), 1),
-            #             min(max((end - tally) / shard_sizes[i], 0), 1),
-            #         ]
-            #     tally += shard_sizes[i]
+            # Use shard file sizes to perform partitioning
+            # Create shardlist of form shardid -> [start%, end%]
+            shard_sizes = [s / sum(shard_sizes) for s in shard_sizes]
+            start = self.rank / self.worldsize
+            end = (self.rank + 1) / self.worldsize
+            shardset = {}
+            tally = 0
+            for i in range(len(shards)):
+                if tally <= end and tally + shard_sizes[i] >= start:
+                    shardset[shards[i]] = [
+                        min(max((start - tally) / shard_sizes[i], 0), 1),
+                        min(max((end - tally) / shard_sizes[i], 0), 1),
+                    ]
+                tally += shard_sizes[i]
 
-            # # Assemble length of each owned shard file
-            # doc_counts = {
-            #     shard: self.filehandler.length(os.path.join(datapath, shard))
-            #     for shard in shardset
-            # }
+            # Assemble length of each owned shard file
+            doc_counts = {
+                shard: self.filehandler.length(os.path.join(datapath, shard))
+                for shard in shardset
+            }
 
-            # # Assemble doc list for each file shard
-            # # Create docset of form [shardid, min docid, max docid]
-            # doccount = 0
-            # for shard in shardset:
-            #     ndocs = doc_counts[shard]
-            #     if ndocs > 0:
-            #         doc_start = int(ndocs * shardset[shard][0])
-            #         doc_end = max(
-            #             doc_start, int(ndocs * shardset[shard][1]) - 1
-            #         )  # inclusive upper bound
-            #         self.docset.append([shard, doc_start, doc_end])
-            #         doccount += doc_end - doc_start + 1
-            # self._len = doccount
+            # Assemble doc list for each file shard
+            # Create docset of form [shardid, min docid, max docid]
+            doccount = 0
+            for shard in shardset:
+                ndocs = doc_counts[shard]
+                if ndocs > 0:
+                    doc_start = int(ndocs * shardset[shard][0])
+                    doc_end = max(
+                        doc_start, int(ndocs * shardset[shard][1]) - 1
+                    )  # inclusive upper bound
+                    self.docset.append([shard, doc_start, doc_end])
+                    doccount += doc_end - doc_start + 1
+            self._len = doccount
 
-            # if self.verbose:
-            #     logging.info(
-            #         f"    Worker {self.rank} ingested {len(self.docset)} shard fragments from {dataset}"
-            #     )
+            if self.verbose:
+                logging.info(
+                    f"    Worker {self.rank} ingested {len(self.docset)} shard fragments from {dataset}"
+                )
 
-            # # Shuffle shard files - guaranteed inconsistent across workers
-            # seed = self.seed + self.rank
-            # random.seed(seed)
-            # random.shuffle(self.docset)
+            # Shuffle shard files - guaranteed inconsistent across workers
+            seed = self.seed + self.rank
+            random.seed(seed)
+            random.shuffle(self.docset)
             # Setup doc shuffle - same guarantee
-            # self.lcg_state = seed
-            self._len = 1000
+            self.lcg_state = seed
             self.g = torch.Generator().manual_seed(self.rank)
 
     def _get_docid(self, i):
