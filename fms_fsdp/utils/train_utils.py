@@ -79,13 +79,43 @@ def train(
     # loop_start = time.time()
     # train_loss = -1
     for batch_idx, (dec_input, ground_truth, corrupted) in enumerate(train_loader, start=start_step + 1):
-        dec_input = dec_input.to(local_rank)
-        ground_truth = ground_truth.to(local_rank)
-        corrupted = corrupted.to(local_rank)
-        prior = dec_input[:,:128]
-        prompt = ground_truth[:,:128]
+        # dec_input = dec_input.to(local_rank)
+        # ground_truth = ground_truth.to(local_rank)
+        # corrupted = corrupted.to(local_rank)
+        # prior = dec_input[:,:128]
+        # prompt = ground_truth[:,:128]
         # samples = corrupted[:,128:]
-        samples = ground_truth[:,128:]
+        # # samples = ground_truth[:,128:]
+        prompt = [  279,  1561,   320,   697, 26451,     8, 23974,  1914,    13, 33043,
+          323,  1005,   304,  2592,   323,  8026,   198,   322,   220,  7739,
+           11,   449,   477,  2085, 17466,    11,   527, 15480,  3984,   430,
+          279,  2768,  4787,   198,   322,   220,   527,  2322,   512,  2341,
+          322,   220,   220,    16,    13, 20178,   315,  2592,  2082,  2011,
+        14389,   279,  3485,  7065,  5406,    11,   420,  1160,   315,   198,
+          322,   257,  4787,   323,   279,  2768, 18141,   627,   322,   220,
+          220,    17,    13, 20178,   304,  8026,  1376,  2011, 23645,   279,
+         3485,  7065,  5406,    11,   420,  1160,   198,   322,   257,   315,
+         4787,   323,   279,  2768, 18141,   304,   279,  9904,   323,  5255,
+         1023,  7384,   198,   322,   257,  3984,   449,   279,  8141,   627,
+          322,   220,   220,    18,    13, 25215,   279,  5144,   315,   279,
+        84527,  4500,  1912,  6463,   279,  5144,   315,  1202]
+        prior = [304] + prompt[:-1]
+        samples = [  430,  5439,  8041,  4787,   322,   322,   220, 10245, 29653,    11,
+         5144,    11,   198,   322,   315, 16832, 31630,    11, 14879, 61793,
+         7866,  3247, 14879, 21269, 20178, 22487,  8730,  3507, 16932,   420,
+           11, 28171,    18,   322,   220,  2592,    11, 31642,    11,   198,
+          322,   220,  2794, 26715,  3247, 13163,  7579,    11,   322,   220,
+         3241,  2085,  3083,  8094,  3651,   322, 15480, 28453,  3083,  9645,
+        17095,   279,  4276, 19507,   477,    13,  3956, 14592,   505, 33043,
+         8026,    13, 11155, 13032, 16202,  5782,  2011,  4230,   198, 13405,
+         5257,    11,    11, 16480,  3507,     1,   322,   220,   198,    11,
+        31432,   320, 19374,   257,   322,   257,  7384, 20965,   198,   322,
+         1912,  1253,   387,   220,   311,  2794, 28515, 16908,   304,   198,
+         4716,   362,  7807,  7667,  1950, 11155,   279, 22487,  7354, 17466,
+          315,  4230,    13,  2794, 13163,  7065,    13,  2006]
+        prompt = torch.tensor(prompt, dtype=torch.int, device=local_rank)
+        prior = torch.tensor(prior, dtype=torch.int, device=local_rank)
+        samples = torch.tensor(samples, dtype=torch.int, device=local_rank)
 
         tosave = [prompt.cpu(), samples.cpu()]
         with torch.no_grad():
