@@ -35,10 +35,11 @@ def causal_lm(data_seq):
     diff_seq = t.view(-1,128)
     resample_interval = torch.rand(diff_seq.size(0),1).sqrt()
     resample_interval = torch.ones_like(diff_seq) * resample_interval
-    resample_mask = torch.bernoulli(resample_interval)
+    resample_mask = torch.bernoulli(resample_interval).int()
     prev_shuffle = diff_seq.roll(1, dims=0)
     prev_shuffle = torch.stack([x[0,torch.randperm(128)] for x in prev_shuffle.split(1)], dim=0)
     diff_seq = diff_seq*resample_mask + (1-resample_mask)*prev_shuffle
+    diff_sez = diff_seq.int()  # Should be redundant, but just to make sure
     reorder_interval = torch.rand(diff_seq.size(0)).sqrt()
     n_partitions = (1-reorder_interval).mul(128).int()
     out = []
