@@ -148,7 +148,7 @@ def train(
             _, cache = model(prompt[:,:128], prior[:,:128], use_cache=True)
             if rank==0:
                 print(f".   Cache retrieved. Len is {len(cache)}, sizes are {cache[0][0].shape} and {cache[-1][0].shape}")
-            pred = samples.int()
+            pred = samples[:,128:].int()
             for i in range(10):
                 pred, _ = model(pred, prompt, use_cache=True, past_key_value_states=cache)
                 if rank==0:
