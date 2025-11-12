@@ -387,7 +387,7 @@ def get_model_config(model_variant):
             rope_scaling={"rope_type":"unrope"},
             rope_partial=.5,
         )
-    elif model_variant == "llama_1b_unrope32_1/8":
+    elif model_variant == "llama_1b_unrope32_1-8":
         model_config = LLaMAConfig(
             src_vocab_size=128256,
             emb_dim=1280,
@@ -400,7 +400,7 @@ def get_model_config(model_variant):
             rope_scaling={"rope_type":"unrope"},
             rope_partial=.125,
         )
-    elif model_variant == "llama_1b_unrope32_1/4":
+    elif model_variant == "llama_1b_unrope32_1-4":
         model_config = LLaMAConfig(
             src_vocab_size=128256,
             emb_dim=1280,
@@ -413,7 +413,7 @@ def get_model_config(model_variant):
             rope_scaling={"rope_type":"unrope"},
             rope_partial=.25,
         )
-    elif model_variant == "llama_1b_unrope32_3/8":
+    elif model_variant == "llama_1b_unrope32_3-8":
         model_config = LLaMAConfig(
             src_vocab_size=128256,
             emb_dim=1280,
@@ -426,7 +426,7 @@ def get_model_config(model_variant):
             rope_scaling={"rope_type":"unrope"},
             rope_partial=.375,
         )
-    elif model_variant == "llama_1b_unrope32_5/8":
+    elif model_variant == "llama_1b_unrope32_5-8":
         model_config = LLaMAConfig(
             src_vocab_size=128256,
             emb_dim=1280,
@@ -439,7 +439,7 @@ def get_model_config(model_variant):
             rope_scaling={"rope_type":"unrope"},
             rope_partial=.625,
         )
-    elif model_variant == "llama_1b_unrope32_3/4":
+    elif model_variant == "llama_1b_unrope32_3-4":
         model_config = LLaMAConfig(
             src_vocab_size=128256,
             emb_dim=1280,
@@ -452,7 +452,7 @@ def get_model_config(model_variant):
             rope_scaling={"rope_type":"unrope"},
             rope_partial=.75,
         )
-    elif model_variant == "llama_1b_unrope32_7/8":
+    elif model_variant == "llama_1b_unrope32_7-8":
         model_config = LLaMAConfig(
             src_vocab_size=128256,
             emb_dim=1280,
