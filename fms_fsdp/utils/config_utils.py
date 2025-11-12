@@ -335,6 +335,19 @@ def get_model_config(model_variant):
             rope_scaling={"rope_type":"unrope"},
             rope_partial=.5,
         )
+    elif model_variant == "llama_1b_unrope16":
+        model_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=1280,
+            nheads=16,
+            kvheads=4,
+            nlayers=32,
+            hidden_grow_factor=3.2,
+            max_expected_seq_len=4096,
+            rope_theta=16,
+            rope_scaling={"rope_type":"unrope"},
+            rope_partial=.5,
+        )
     elif model_variant == "llama_1b_unrope32":
         model_config = LLaMAConfig(
             src_vocab_size=128256,
@@ -344,6 +357,32 @@ def get_model_config(model_variant):
             nlayers=32,
             hidden_grow_factor=3.2,
             max_expected_seq_len=4096,
+            rope_theta=32,
+            rope_scaling={"rope_type":"unrope"},
+            rope_partial=.5,
+        )
+    elif model_variant == "llama_1b_unrope64":
+        model_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=1280,
+            nheads=16,
+            kvheads=4,
+            nlayers=32,
+            hidden_grow_factor=3.2,
+            max_expected_seq_len=4096,
+            rope_theta=64,
+            rope_scaling={"rope_type":"unrope"},
+            rope_partial=.5,
+        )
+    elif model_variant == "llama_1b_unrope_onecycle":
+        model_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=1280,
+            nheads=16,
+            kvheads=4,
+            nlayers=32,
+            hidden_grow_factor=3.2,
+            max_expected_seq_len=8192,
             rope_theta=32,
             rope_scaling={"rope_type":"unrope"},
             rope_partial=.5,
