@@ -60,6 +60,7 @@ def main(**kwargs):
 
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
+    llama_config = cfg.aux_sparsity
     if cfg.low_cpu_fsdp:
         with torch.device("meta"):
             model = LLaMA(llama_config)
