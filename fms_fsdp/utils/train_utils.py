@@ -78,15 +78,28 @@ def train(
     start = time.time()
     loop_start = time.time()
     train_loss = -1
-    for batch_idx, (dec_input, ground_truth, corrupted) in enumerate(train_loader, start=start_step + 1):
+    flowover_history = None
+    flowover_ground_truth = None
+    flowover_dec_input = None
+    flowover_corruption = None
+    for batch_idx, (history, ground_truth, dec_input) in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
         dec_input = dec_input.to(local_rank)
         ground_truth = ground_truth.to(local_rank)
-        corrupted = corrupted.to(local_rank)
+        history = history.to(local_rank)
+        if flowover_history is None:
+            flowover_history = history
+            flowover_dec_input = dec_input
+            flowover_ground_truth = ground_truth
+            flowover_corruption = history
+        dec_input = torch.cat([dec_input, flowover_dec_input], dim=0)
+        ground_truth = torch.cat([ground_truth, flowover_ground_truth], dim=0)
+        history = torch.cat([history, flowover_history], dim=0)
+        corruption = torch.cat([history, flowover_corruption], dim=0)
 
         optimizer.zero_grad()
-        output = model(ground_truth, corrupted, dec_input)
+        output = model(history, corruption, dec_input)
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output.view(-1, output.size(-1)), ground_truth.view(-1).long())
@@ -99,6 +112,19 @@ def train(
 
         ddp_stats[0] += loss.item()
         ddp_stats[2] += 1
+
+        # Generate flowover data
+        ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//2]
+        flowover_history = history[ids]
+        flowover_ground_truth = ground_truth[ids]
+        flowover_dec_input = dec_input[ids]
+        flowover_corruption = model(
+            flowover_ground_truth,
+            None,
+            flowover_dec_input,
+            gen_data = True,
+        )
+
 
         if profiler:
             profiler.step()
