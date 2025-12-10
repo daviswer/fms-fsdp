@@ -98,6 +98,9 @@ def train(
         history = torch.cat([history, flowover_history], dim=0)
         corruption = torch.cat([history, flowover_corruption], dim=0)
 
+        if local_rank==0:
+            print(dec_input.size(), ground_truth.size(), history.size(), corruption.size())
+
         optimizer.zero_grad()
         output = model(history, corruption, dec_input)
         output = output.logits if hasattr(output, "logits") else output
