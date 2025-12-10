@@ -114,17 +114,18 @@ def train(
         ddp_stats[2] += 1
 
         # Generate flowover data
-        ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//2]
-        flowover_history = history[ids]
-        flowover_ground_truth = ground_truth[ids]
-        flowover_dec_input = dec_input[ids]
-        embeds = embeds[ids]
-        flowover_corruption, _ = model(
-            embeds,
-            None,
-            flowover_dec_input,
-            gen_data = True,
-        )
+        with torch.no_grad():
+            ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//2]
+            flowover_history = history[ids]
+            flowover_ground_truth = ground_truth[ids]
+            flowover_dec_input = dec_input[ids]
+            embeds = embeds[ids]
+            flowover_corruption, _ = model(
+                embeds,
+                None,
+                flowover_dec_input,
+                gen_data = True,
+            )
 
 
         if profiler:
