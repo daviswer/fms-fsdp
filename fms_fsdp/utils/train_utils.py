@@ -95,11 +95,8 @@ def train(
             flowover_corruption = history
         dec_input = torch.cat([dec_input, flowover_dec_input], dim=0)
         ground_truth = torch.cat([ground_truth, flowover_ground_truth], dim=0)
-        history = torch.cat([history, flowover_history], dim=0)
         corruption = torch.cat([history, flowover_corruption], dim=0)
-
-        if local_rank==0:
-            print(dec_input.size(), ground_truth.size(), history.size(), corruption.size())
+        history = torch.cat([history, flowover_history], dim=0)
 
         optimizer.zero_grad()
         output = model(history, corruption, dec_input)
