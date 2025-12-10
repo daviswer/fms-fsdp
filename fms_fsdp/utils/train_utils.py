@@ -99,7 +99,7 @@ def train(
         history = torch.cat([history, flowover_history], dim=0)
 
         optimizer.zero_grad()
-        output = model(history, corruption, dec_input)
+        output, embeds = model(history, corruption, dec_input)
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output.view(-1, output.size(-1)), ground_truth.view(-1).long())
@@ -118,8 +118,9 @@ def train(
         flowover_history = history[ids]
         flowover_ground_truth = ground_truth[ids]
         flowover_dec_input = dec_input[ids]
-        flowover_corruption = model(
-            flowover_ground_truth,
+        embeds = embeds[ids]
+        flowover_corruption, _ = model(
+            embeds,
             None,
             flowover_dec_input,
             gen_data = True,
