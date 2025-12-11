@@ -78,31 +78,28 @@ def train(
     start = time.time()
     loop_start = time.time()
     train_loss = -1
-    flowover_history = None
-    flowover_ground_truth = None
-    flowover_dec_input = None
-    flowover_corruption = None
+    flowovers = None
     flowover_denom = cfg.flowover_denom
-    for batch_idx, (history, ground_truth, dec_input, corruption) in enumerate(train_loader, start=start_step + 1):
+    for batch_idx, (history, ground_truth, dec_input, dec_history, corruption) in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
         dec_input = dec_input.to(local_rank)
         ground_truth = ground_truth.to(local_rank)
         history = history.to(local_rank)
+        dec_history = dec_history.to(local_rank)
         corruption = corruption.to(local_rank)
-        if flowover_history is None:
+        if flowovers is None:
             b = history.size(0)
-            flowover_history = history[:b//(flowover_denom-1)]
-            flowover_dec_input = dec_input[:b//(flowover_denom-1)]
-            flowover_ground_truth = ground_truth[:b//(flowover_denom-1)]
-            flowover_corruption = corruption[:b//(flowover_denom-1)]
-        dec_input = torch.cat([dec_input, flowover_dec_input], dim=0)
-        ground_truth = torch.cat([ground_truth, flowover_ground_truth], dim=0)
-        corruption = torch.cat([corruption, flowover_corruption], dim=0)
-        history = torch.cat([history, flowover_history], dim=0)
+            flowovers = [x[:b//(flowover_denom-1)] for x in [history, ground_truth, dec_input, dec_history, corruption]]
+        history = torch.cat([history, flowovers[0]], dim=0)
+        ground_truth = torch.cat([ground_truth, flowovers[1]], dim=0)
+        dec_input = torch.cat([dec_input, flowovers[2]], dim=0)
+        dec_history = torch.cat([dec_history, flowovers[3]], dim=0)
+        corruption = torch.cat([corruption, flowovers[4]], dim=0)
+        
 
         optimizer.zero_grad()
-        output, embeds = model(history, corruption, dec_input)
+        output, embeds, dec_cache = model(history, corruption, torch.cat([dec_history,dec_input], dim=1))
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output[:-b//flowover_denom].view(-1, output.size(-1)), ground_truth[:-b//flowover_denom].view(-1).long())
@@ -114,18 +111,24 @@ def train(
         ddp_stats[2] += flowover_loss.item()
         ddp_stats[3] += 1
 
-        # Generate flowover data
+        # Generate fresh flowover corruption data
         with torch.no_grad():
             ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
-            flowover_history = history[ids]
-            flowover_ground_truth = ground_truth[ids]
-            flowover_dec_input = dec_input[ids]
+            flowovers = [x[ids] for x in flowovers]
             embeds = embeds[ids]
-            flowover_corruption, _ = model(
+            if local_rank==0:
+                print(dec_cache[0][0].shape)
+            assert False
+            dec_cache[0][0] = dec_cache[0][0][ids]
+            dec_cache[0][1] = dec_cache[0][1][ids]
+            dec_cache[1][0] = dec_cache[1][0][ids]
+            dec_cache[1][1] = dec_cache[1][1][ids]
+            flowovers[4], _ = model(
                 embeds,
                 None,
-                flowover_dec_input,
+                flowovers[2],
                 gen_data = True,
+                past_key_value_states = dec_cache,
             )
 
         ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()

@@ -30,30 +30,32 @@ def causal_lm(data_seq):
     Sets first prompt_len tokens to be ignored by the loss.
     """
     data_seq = torch.tensor(data_seq, dtype=torch.int)
-    history = data_seq[:-128]
-    gt = data_seq[128:]
-    dec_inp = data_seq[127:-1]
+    history = data_seq[1:-128]
+    gt = data_seq[1+128:]
+    dec_inp = data_seq[1+127:-1]
+    dec_history = data_seq[:-128-1]
+    cor = history.clone()
 
-    cor = []
-    gtpool = gt.view(-1,128)
-    histpool = history.view(-1,128)
-    for j in range(gtpool.size(0)):
-        chunk = []
-        # Form subchunks
-        history_interval = torch.rand(1)
-        n_partitions = torch.rand(1).mul(128).int()
-        signposts = torch.randperm(128)[:n_partitions].tolist()
-        signposts = ([0] if len(signposts)==0 or min(signposts)!=0 else []) + sorted(signposts) + [128]
-        while len(chunk) < 128:
-            # Decide what pool to grab from
-            pool = gtpool[j] if torch.rand(1).gt(history_interval) else histpool[j]
-            # Grab a subchunk
-            i = torch.rand(1).mul(len(signposts)-1).int().item()
-            chunk += pool[signposts[i]:signposts[i+1]].tolist()
-        cor.append(chunk[:128])
-    cor = torch.tensor(cor, dtype=torch.int).view(-1)
+    # cor = []
+    # gtpool = gt.view(-1,128)
+    # histpool = history.view(-1,128)
+    # for j in range(gtpool.size(0)):
+    #     chunk = []
+    #     # Form subchunks
+    #     history_interval = torch.rand(1)
+    #     n_partitions = torch.rand(1).mul(128).int()
+    #     signposts = torch.randperm(128)[:n_partitions].tolist()
+    #     signposts = ([0] if len(signposts)==0 or min(signposts)!=0 else []) + sorted(signposts) + [128]
+    #     while len(chunk) < 128:
+    #         # Decide what pool to grab from
+    #         pool = gtpool[j] if torch.rand(1).gt(history_interval) else histpool[j]
+    #         # Grab a subchunk
+    #         i = torch.rand(1).mul(len(signposts)-1).int().item()
+    #         chunk += pool[signposts[i]:signposts[i+1]].tolist()
+    #     cor.append(chunk[:128])
+    # cor = torch.tensor(cor, dtype=torch.int).view(-1)
 
-    return history, gt, dec_inp, cor
+    return history, gt, dec_inp, dec_history, cor
     # t = data_seq.clone()[1:]
     # data_seq = data_seq[:-1]
     # diff_seq = t.view(-1,128)
@@ -175,10 +177,10 @@ def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
         verbose=(rank == 0),
     )
     # Wrap above dataset in packing logic to form constant-length lines.
-    # Increment seq len to counteract CLM's one token removal.
+    # Increment seq len to counteract CLM's one token removal + history blocking.
     data = BufferDataset(
         data,
-        cfg.seq_length + 128,
+        cfg.seq_length + 128 + 1,
         bos_token=cfg.bol_token,
         eos_token=cfg.eol_token,
         pack_hard=True,
