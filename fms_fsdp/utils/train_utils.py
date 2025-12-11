@@ -111,6 +111,10 @@ def train(
         ddp_stats[2] += flowover_loss.item()
         ddp_stats[3] += 1
 
+        ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
+        optimizer.step()
+        scheduler.step()
+
         # Generate fresh flowover corruption data
         with torch.no_grad():
             ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
@@ -127,10 +131,6 @@ def train(
                 gen_data = True,
                 past_key_value_states = dec_cache,
             )
-
-        ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
-        optimizer.step()
-        scheduler.step()
 
         if profiler:
             profiler.step()
