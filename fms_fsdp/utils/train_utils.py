@@ -138,7 +138,7 @@ def train(
             dist.all_reduce(ddp_stats, op=dist.ReduceOp.SUM)
             train_loss = ddp_stats[0] / ddp_stats[3]
             flowover_loss = ddp_stats[2] / ddp_stats[3]
-            g_norm = ddp_stats[1] / ddp_stats[2]
+            g_norm = ddp_stats[1] / ddp_stats[3]
             elapsed_time = time.time() - loop_start
             world_size = int(os.environ["WORLD_SIZE"])
             new_tokens_seen = (
