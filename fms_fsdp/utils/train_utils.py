@@ -106,8 +106,8 @@ def train(
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output[:-b//4].view(-1, output.size(-1)), ground_truth[:-b//4].view(-1).long())
         flowover_loss = ce_loss(output[-b//4:].view(-1, output.size(-1)), ground_truth[-b//4:].view(-1).long())
-        loss = loss + flowover_loss + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
-        loss.backward()
+        total_loss = .75*loss + .25*flowover_loss + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
+        total_loss.backward()
 
         ddp_stats[0] += loss.item()
         ddp_stats[2] += flowover_loss.item()
