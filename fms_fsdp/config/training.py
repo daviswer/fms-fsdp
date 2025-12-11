@@ -50,6 +50,7 @@ class train_config:
     grad_clip_thresh: float = 1.0
     seed: int = 2023
     zl_coeff: float = 1e-4
+    flowover_denom: float = 4
 
     # continued training spec
     resuming_dataset: bool = False

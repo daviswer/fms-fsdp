@@ -82,6 +82,7 @@ def train(
     flowover_ground_truth = None
     flowover_dec_input = None
     flowover_corruption = None
+    flowover_denom = cfg.flowover_denom
     for batch_idx, (history, ground_truth, dec_input, corruption) in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
@@ -91,10 +92,10 @@ def train(
         corruption = corruption.to(local_rank)
         if flowover_history is None:
             b = history.size(0)
-            flowover_history = history[:b//3]
-            flowover_dec_input = dec_input[:b//3]
-            flowover_ground_truth = ground_truth[:b//3]
-            flowover_corruption = corruption[:b//3]
+            flowover_history = history[:b//(flowover_denom-1)]
+            flowover_dec_input = dec_input[:b//(flowover_denom-1)]
+            flowover_ground_truth = ground_truth[:b//(flowover_denom-1)]
+            flowover_corruption = corruption[:b//(flowover_denom-1)]
         dec_input = torch.cat([dec_input, flowover_dec_input], dim=0)
         ground_truth = torch.cat([ground_truth, flowover_ground_truth], dim=0)
         corruption = torch.cat([corruption, flowover_corruption], dim=0)
@@ -104,9 +105,9 @@ def train(
         output, embeds = model(history, corruption, dec_input)
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
-        loss = ce_loss(output[:-b//4].view(-1, output.size(-1)), ground_truth[:-b//4].view(-1).long())
-        flowover_loss = ce_loss(output[-b//4:].view(-1, output.size(-1)), ground_truth[-b//4:].view(-1).long())
-        total_loss = .75*loss + .25*flowover_loss + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
+        loss = ce_loss(output[:-b//flowover_denom].view(-1, output.size(-1)), ground_truth[:-b//flowover_denom].view(-1).long())
+        flowover_loss = ce_loss(output[-b//flowover_denom:].view(-1, output.size(-1)), ground_truth[-b//flowover_denom:].view(-1).long())
+        total_loss = (1-1/flowover_denom)*loss + (1/flowover_denom)*flowover_loss + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
         total_loss.backward()
 
         ddp_stats[0] += loss.item()
@@ -115,7 +116,7 @@ def train(
 
         # Generate flowover data
         with torch.no_grad():
-            ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//4]
+            ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
             flowover_history = history[ids]
             flowover_ground_truth = ground_truth[ids]
             flowover_dec_input = dec_input[ids]
