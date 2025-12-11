@@ -73,7 +73,7 @@ def train(
                 run["hparams"] = asdict(cfg)
 
     model.train()
-    ddp_stats = torch.zeros(3).to(local_rank)
+    ddp_stats = torch.zeros(4).to(local_rank)
 
     start = time.time()
     loop_start = time.time()
@@ -104,16 +104,14 @@ def train(
         output, embeds = model(history, corruption, dec_input)
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
-        loss = ce_loss(output.view(-1, output.size(-1)), ground_truth.view(-1).long())
-        loss = loss + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
+        loss = ce_loss(output[:-b//4].view(-1, output.size(-1)), ground_truth[:-b//4].view(-1).long())
+        flowover_loss = ce_loss(output[-b//4:].view(-1, output.size(-1)), ground_truth[-b//4:].view(-1).long())
+        loss = loss + flowover_loss + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
         loss.backward()
 
-        ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
-        optimizer.step()
-        scheduler.step()
-
         ddp_stats[0] += loss.item()
-        ddp_stats[2] += 1
+        ddp_stats[2] += flowover_loss.item()
+        ddp_stats[3] += 1
 
         # Generate flowover data
         with torch.no_grad():
@@ -129,12 +127,17 @@ def train(
                 gen_data = True,
             )
 
+        ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
+        optimizer.step()
+        scheduler.step()
+
         if profiler:
             profiler.step()
 
         if batch_idx % cfg.report_interval == 0:
             dist.all_reduce(ddp_stats, op=dist.ReduceOp.SUM)
-            train_loss = ddp_stats[0] / ddp_stats[2]
+            train_loss = ddp_stats[0] / ddp_stats[3]
+            flowover_loss = ddp_stats[2] / ddp_stats[3]
             g_norm = ddp_stats[1] / ddp_stats[2]
             elapsed_time = time.time() - loop_start
             world_size = int(os.environ["WORLD_SIZE"])
@@ -148,6 +151,7 @@ def train(
             if rank == 0:
                 total_tokens_seen = tokens_seen + new_tokens_seen
                 current_loss = train_loss.item()
+                flowover_loss = flowover_loss.item()
                 current_lr = scheduler.get_last_lr()[0]
                 current_gnorm = g_norm.item()
                 current_step_time = (time.time() - start) / cfg.report_interval
@@ -167,6 +171,7 @@ def train(
 
                 print("step:", batch_idx)
                 print("loss:", current_loss)
+                print("flowover loss:", flowover_loss)
                 print("LR:", current_lr)
                 print("tokens seen:", total_tokens_seen)
                 print("gradient norm:", current_gnorm)
@@ -185,6 +190,7 @@ def train(
                     vals_to_track = {
                         "learning rate": current_lr,
                         "loss": current_loss,
+                        "flowover loss": flowover_loss,
                         "gradient norm": current_gnorm,
                         "token seen": total_tokens_seen,
                         "current throughput (token per gpu per sec)": current_throughput,
