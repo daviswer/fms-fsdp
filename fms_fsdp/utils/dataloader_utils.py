@@ -48,7 +48,7 @@ def causal_lm(data_seq):
             # Decide what pool to grab from
             pool = gtpool[j] if torch.rand(1).gt(history_interval) else histpool[j]
             # Grab a subchunk
-            i = torch.rand(1).mul(len(signposts)).int().item()
+            i = torch.rand(1).mul(len(signposts)-1).int().item()
             chunk += pool[signposts[i]:signposts[i+1]].tolist()
         cor.append(chunk[:128])
     cor = torch.tensor(cor, dtype=torch.int).view(-1)
