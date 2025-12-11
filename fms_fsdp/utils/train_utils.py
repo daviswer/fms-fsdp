@@ -124,7 +124,7 @@ def train(
             dec_cache[0][1] = dec_cache[0][1][ids]
             dec_cache[1][0] = dec_cache[1][0][ids]
             dec_cache[1][1] = dec_cache[1][1][ids]
-            flowovers[4], _ = model(
+            flowovers[4] = model(
                 embeds,
                 None,
                 flowovers[2],
