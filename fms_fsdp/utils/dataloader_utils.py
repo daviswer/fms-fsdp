@@ -33,7 +33,27 @@ def causal_lm(data_seq):
     history = data_seq[:-128]
     gt = data_seq[128:]
     dec_inp = data_seq[127:-1]
-    return history, gt, dec_inp
+
+    cor = []
+    gtpool = gt.view(-1,128)
+    histpool = history.view(-1,128)
+    for j in range(gtpool.size(0)):
+        chunk = []
+        # Form subchunks
+        history_interval = torch.rand(1)
+        n_partitions = torch.rand(1).mul(128).int()
+        signposts = torch.randperm(128)[:n_partitions].tolist()
+        signposts = ([0] if len(signposts)==0 or min(signposts)!=0 else []) + sorted(signposts) + [128]
+        while len(chunk) < 128:
+            # Decide what pool to grab from
+            pool = gtpool[j] if torch.rand(1).gt(history_interval) else histpool[j]
+            # Grab a subchunk
+            i = torch.rand(1).mul(len(signposts)).int().item()
+            chunk += pool[signposts[i]:signposts[i+1]].tolist()
+        cor.append(chunk[:128])
+    cor = torch.tensor(cor, dtype=torch.int).view(-1)
+
+    return history, gt, dec_inp, cor
     # t = data_seq.clone()[1:]
     # data_seq = data_seq[:-1]
     # diff_seq = t.view(-1,128)

@@ -82,20 +82,22 @@ def train(
     flowover_ground_truth = None
     flowover_dec_input = None
     flowover_corruption = None
-    for batch_idx, (history, ground_truth, dec_input) in enumerate(train_loader, start=start_step + 1):
+    for batch_idx, (history, ground_truth, dec_input, corruption) in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
         dec_input = dec_input.to(local_rank)
         ground_truth = ground_truth.to(local_rank)
         history = history.to(local_rank)
+        corruption = corruption.to(local_rank)
         if flowover_history is None:
-            flowover_history = history
-            flowover_dec_input = dec_input
-            flowover_ground_truth = ground_truth
-            flowover_corruption = history
+            b = history.size(0)
+            flowover_history = history[:b//2]
+            flowover_dec_input = dec_input[:b//2]
+            flowover_ground_truth = ground_truth[:b//2]
+            flowover_corruption = corruption[:b//2]
         dec_input = torch.cat([dec_input, flowover_dec_input], dim=0)
         ground_truth = torch.cat([ground_truth, flowover_ground_truth], dim=0)
-        corruption = torch.cat([history, flowover_corruption], dim=0)
+        corruption = torch.cat([corruption, flowover_corruption], dim=0)
         history = torch.cat([history, flowover_history], dim=0)
 
         optimizer.zero_grad()
@@ -115,7 +117,7 @@ def train(
 
         # Generate flowover data
         with torch.no_grad():
-            ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//2]
+            ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//3]
             flowover_history = history[ids]
             flowover_ground_truth = ground_truth[ids]
             flowover_dec_input = dec_input[ids]
@@ -126,7 +128,6 @@ def train(
                 flowover_dec_input,
                 gen_data = True,
             )
-
 
         if profiler:
             profiler.step()
