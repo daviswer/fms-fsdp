@@ -100,8 +100,6 @@ def train(
 
         optimizer.zero_grad()
         output, embeds, dec_cache = model(history, corruption, torch.cat([dec_history,dec_input], dim=1))
-        if local_rank==0:
-            print("GOTHERE")
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output[:-b//flowover_denom].view(-1, output.size(-1)), ground_truth[:-b//flowover_denom].view(-1).long())
@@ -118,9 +116,6 @@ def train(
             ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
             flowovers = [x[ids] for x in flowovers]
             embeds = embeds[ids]
-            if local_rank==0:
-                print("EBU", dec_cache[0][0].shape)
-            assert False
             dec_cache[0][0] = dec_cache[0][0][ids]
             dec_cache[0][1] = dec_cache[0][1][ids]
             dec_cache[1][0] = dec_cache[1][0][ids]
