@@ -91,10 +91,10 @@ def train(
         corruption = corruption.to(local_rank)
         if flowover_history is None:
             b = history.size(0)
-            flowover_history = history[:b//2]
-            flowover_dec_input = dec_input[:b//2]
-            flowover_ground_truth = ground_truth[:b//2]
-            flowover_corruption = corruption[:b//2]
+            flowover_history = history[:b//3]
+            flowover_dec_input = dec_input[:b//3]
+            flowover_ground_truth = ground_truth[:b//3]
+            flowover_corruption = corruption[:b//3]
         dec_input = torch.cat([dec_input, flowover_dec_input], dim=0)
         ground_truth = torch.cat([ground_truth, flowover_ground_truth], dim=0)
         corruption = torch.cat([corruption, flowover_corruption], dim=0)
@@ -117,7 +117,7 @@ def train(
 
         # Generate flowover data
         with torch.no_grad():
-            ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//3]
+            ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//4]
             flowover_history = history[ids]
             flowover_ground_truth = ground_truth[ids]
             flowover_dec_input = dec_input[ids]
