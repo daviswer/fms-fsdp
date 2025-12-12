@@ -118,7 +118,11 @@ def train(
         # Generate fresh flowover corruption data
         with torch.no_grad():
             ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
+            if local_rank==0:
+                print(flowovers[2][:,:8])
             flowovers = [x[ids] for x in flowovers]
+            if local_rank==0:
+                print(flowovers[2][:,:8])
             embeds = embeds[ids]
             dec_cache[0][0] = dec_cache[0][0][ids]
             dec_cache[0][1] = dec_cache[0][1][ids]
