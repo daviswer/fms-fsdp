@@ -118,6 +118,7 @@ def train(
         # Generate fresh flowover corruption data
         with torch.no_grad():
             ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
+            ids[0] = 0  # TODO: remove after equiv testing
             flowovers = [x[ids] for x in [history, ground_truth, dec_input, dec_history, corruption]]
             embeds = embeds[ids]
             dec_cache[0][0] = dec_cache[0][0][ids]
