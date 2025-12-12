@@ -120,6 +120,8 @@ def train(
             ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
             if local_rank==0:
                 print(flowovers[2][:,:8])
+                print(flowovers[2].shape)
+                print(ids)
             flowovers = [x[ids] for x in flowovers]
             if local_rank==0:
                 print(flowovers[2][:,:8])
