@@ -132,9 +132,6 @@ def train(
                 gen_data = True,
                 past_key_value_states = dec_cache,
             )
-            if local_rank==0:
-                print(flowovers[4][:,0])
-                print(output[ids][:,0].argmax(-1))
 
         if profiler:
             profiler.step()
