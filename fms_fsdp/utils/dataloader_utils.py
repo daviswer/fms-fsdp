@@ -33,7 +33,7 @@ def causal_lm(data_seq):
     t = data_seq.clone()[1:]
     data_seq = data_seq[:-1]
 
-    diff_seq = data_seq[:-1-128]
+    diff_seq = data_seq[:-128]
     # diff_seq = t.view(-1,128)[1:]
     # diff_prev = t.view(-1,128)[:-1]
     # resample_interval = torch.rand(diff_seq.size(0),1)  # .sqrt()
