@@ -34,7 +34,7 @@ def causal_lm(data_seq):
     gt = data_seq[1+128:]
     dec_inp = data_seq[1+127:-1]
     dec_history = data_seq[:-128-1]
-    cor = history.clone()
+    # cor = history.clone()
 
     # cor = []
     # gtpool = gt.view(-1,128)
@@ -55,27 +55,25 @@ def causal_lm(data_seq):
     #     cor.append(chunk[:128])
     # cor = torch.tensor(cor, dtype=torch.int).view(-1)
 
+    cor = gt.view(-1,128)
+    resample_interval = torch.rand(cor.size(0),1)  # .sqrt()
+    resample_interval = torch.ones_like(cor) * resample_interval
+    resample_mask = torch.bernoulli(resample_interval).int()
+    prev_shuffle = history.view(-1,128)
+    prev_shuffle = torch.stack([x[0,torch.randperm(128)] for x in prev_shuffle.split(1)], dim=0)
+    cor = cor*resample_mask + (1-resample_mask)*prev_shuffle
+    reorder_interval = torch.rand(cor.size(0))  # .sqrt()
+    n_partitions = reorder_interval.mul(128).int()
+    out = []
+    for block,n in zip(cor.split(1), n_partitions.split(1)):
+        signposts = torch.randperm(128)[:n].tolist()
+        signposts = ([0] if len(signposts)==0 or min(signposts)!=0 else []) + sorted(signposts) + [128]
+        new_block = [block[0,signposts[i]:signposts[i+1]] for i in range(len(signposts)-1)]
+        new_block = [new_block[i] for i in torch.randperm(len(new_block))]
+        out.append(torch.cat(new_block, dim=0))
+    cor = torch.stack(out, dim=0).view(-1)
+
     return history, gt, dec_inp, dec_history, cor
-    # t = data_seq.clone()[1:]
-    # data_seq = data_seq[:-1]
-    # diff_seq = t.view(-1,128)
-    # resample_interval = torch.rand(diff_seq.size(0),1)  # .sqrt()
-    # resample_interval = torch.ones_like(diff_seq) * resample_interval
-    # resample_mask = torch.bernoulli(resample_interval).int()
-    # prev_shuffle = diff_seq.roll(1, dims=0)
-    # prev_shuffle = torch.stack([x[0,torch.randperm(128)] for x in prev_shuffle.split(1)], dim=0)
-    # diff_seq = diff_seq*resample_mask + (1-resample_mask)*prev_shuffle
-    # reorder_interval = torch.rand(diff_seq.size(0))  # .sqrt()
-    # n_partitions = (1-reorder_interval).mul(128).int()
-    # out = []
-    # for block,n in zip(diff_seq.split(1), n_partitions.split(1)):
-    #     signposts = torch.randperm(128)[:n].tolist()
-    #     signposts = ([0] if len(signposts)==0 or min(signposts)!=0 else []) + sorted(signposts) + [128]
-    #     new_block = [block[0,signposts[i]:signposts[i+1]] for i in range(len(signposts)-1)]
-    #     new_block = [new_block[i] for i in torch.randperm(len(new_block))]
-    #     out.append(torch.cat(new_block, dim=0))
-    # diff_seq = torch.stack(out, dim=0).view(-1)
-    # return data_seq, t, diff_seq
 
 
 def get_dummy_loader(cfg, rank, world_size):
