@@ -32,14 +32,13 @@ def causal_lm(data_seq):
     data_seq = torch.tensor(data_seq, dtype=torch.int)
     t = data_seq.clone()[1:]
     data_seq = data_seq[:-1]
-    diff_seq = t.view(-1,128)
+    diff_seq = t.view(-1,128)[1:]
+    diff_prev = t.view(-1,128)[:-1]
     resample_interval = torch.rand(diff_seq.size(0),1)  # .sqrt()
     resample_interval = torch.ones_like(diff_seq) * resample_interval
     resample_mask = torch.bernoulli(resample_interval).int()
-    prev_shuffle = diff_seq.roll(1, dims=0)
-    prev_shuffle = torch.stack([x[0,torch.randperm(128)] for x in prev_shuffle.split(1)], dim=0)
+    prev_shuffle = torch.stack([x[0,torch.randperm(128)] for x in diff_prev.split(1)], dim=0)
     diff_seq = diff_seq*resample_mask + (1-resample_mask)*prev_shuffle
-    diff_sez = diff_seq.int()  # Should be redundant, but just to make sure
     reorder_interval = torch.rand(diff_seq.size(0))  # .sqrt()
     n_partitions = (1-reorder_interval).mul(128).int()
     out = []
@@ -152,10 +151,10 @@ def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
         verbose=(rank == 0),
     )
     # Wrap above dataset in packing logic to form constant-length lines.
-    # Increment seq len to counteract CLM's one token removal.
+    # Increment seq len to counteract CLM's one token removal + history block stride.
     data = BufferDataset(
         data,
-        cfg.seq_length + 1,
+        cfg.seq_length + 1 + 128,
         bos_token=cfg.bol_token,
         eos_token=cfg.eol_token,
         pack_hard=True,
