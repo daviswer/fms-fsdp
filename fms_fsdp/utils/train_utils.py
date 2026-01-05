@@ -87,7 +87,7 @@ def train(
         optimizer.zero_grad()
         output, masks = model(input)
         if rank==0:
-            torch.save([input.cpu(),masks], os.path.join(cfg.ckpt_save_path, "masks.pth"))
+            torch.save([input.cpu(),masks], cfg.ckpt_save_path)
         dist.barrier()
         assert False
         
