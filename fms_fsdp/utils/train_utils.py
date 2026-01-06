@@ -125,9 +125,9 @@ def train(
         # Generate fresh flowover corruption data
         with torch.no_grad():
             new_dec_input = model(
-                embeds,
+                embeds.contiguous(),
                 None,
-                dec_input,
+                dec_input.contiguous(),
                 gen_data = True,
                 past_key_value_states = dec_cache,
             )
