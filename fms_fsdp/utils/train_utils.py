@@ -124,21 +124,23 @@ def train(
 
         # Generate fresh flowover corruption data
         with torch.no_grad():
-            ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
-            ids[0] = 0  # TODO: remove after equiv testing
-            flowovers = [x[ids] for x in [history, ground_truth, dec_input, dec_history, corruption]]
-            embeds = embeds[ids]
-            dec_cache[0][0] = dec_cache[0][0][ids]
-            dec_cache[0][1] = dec_cache[0][1][ids]
-            dec_cache[1][0] = dec_cache[1][0][ids]
-            dec_cache[1][1] = dec_cache[1][1][ids]
-            flowovers[4] = model(
+            new_dec_input = model(
                 embeds,
                 None,
-                flowovers[2],
+                dec_input,
                 gen_data = True,
                 past_key_value_states = dec_cache,
             )
+            new_dec_input = torch.cat([dec_input[:,:1], new_dec_input[:,:-1]], dim=1)
+
+        # Do a parallel forward pass on the generated data
+        output, embeds, dec_cache = model(history, corruption, torch.cat([dec_history, new_dec_input], dim=1))
+        output = output.logits if hasattr(output, "logits") else output
+        pred = output.argmax(-1)  # b l
+        if rank==0:
+            print(pred[:,:-1])
+            print(new_dec_input[:,1:])
+        assert False
 
         if profiler:
             profiler.step()
