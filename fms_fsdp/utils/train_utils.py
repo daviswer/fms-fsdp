@@ -140,6 +140,7 @@ def train(
         if rank==0:
             print(pred[:,:-1])
             print(new_dec_input[:,1:])
+        time.sleep(5)
         assert False
 
         if profiler:
