@@ -124,7 +124,7 @@ def train(
 
         # Generate fresh flowover corruption data
         with torch.no_grad():
-            new_dec_input = model(
+            new_corruption = model(
                 embeds.contiguous(),
                 None,
                 dec_input.contiguous(),
@@ -134,7 +134,7 @@ def train(
             bsize = dec_input.size(0)
             new_dec_input = torch.cat([
                 dec_input.view(bsize, -1, 128)[:,:,:1], 
-                new_dec_input.view(bsize, -1, 128)[:,:,:-1],
+                new_corruption.view(bsize, -1, 128)[:,:,:-1],
             ], dim=2).reshape(bsize, -1)
 
         # Do a parallel forward pass on the generated data
@@ -145,6 +145,16 @@ def train(
         if rank==0:
             print(pred[:,i:i+32])
             print(new_dec_input[:,i+1:i+33])
+            print()
+            print()
+
+        # Make a new predition on the generated data
+        output, embeds, dec_cache = model(history, new_corruption, torch.cat([dec_history, dec_input], dim=1))
+        output = output.logits if hasattr(output, "logits") else output
+        pred = output.argmax(-1)  # b l
+        if rank==0:
+            print(pred[:,i:i+32])
+
         time.sleep(5)
         assert False
 
