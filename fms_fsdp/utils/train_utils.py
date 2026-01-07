@@ -194,8 +194,8 @@ def train(
                     int(new_tokens_seen / elapsed_time * 3600 * 24),
                 )
                 print(f"Total tok/step: {world_size * cfg.batch_size * cfg.seq_length}")
-                print(flowovers[0][:,128-32:128])
-                print(flowovers[4][:,:32])
+                for i in [0,1024,2048,4096]:
+                    print(flowovers[0][0,i+128-32:i+128].tolist() + [128000] + flowovers[4][0,i:i+32].tolist())
                 print()
                 if cfg.tracker:
                     vals_to_track = {
