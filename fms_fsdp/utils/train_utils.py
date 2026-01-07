@@ -137,9 +137,10 @@ def train(
         output, embeds, dec_cache = model(history, corruption, torch.cat([dec_history, new_dec_input], dim=1))
         output = output.logits if hasattr(output, "logits") else output
         pred = output.argmax(-1)  # b l
+        i = 1024
         if rank==0:
-            print(pred[:,:32])
-            print(new_dec_input[:,1:33])
+            print(pred[:,i:i+32])
+            print(new_dec_input[:,i+1:i+33])
         time.sleep(5)
         assert False
 
