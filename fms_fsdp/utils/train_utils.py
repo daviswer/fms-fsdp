@@ -194,6 +194,7 @@ def train(
                     int(new_tokens_seen / elapsed_time * 3600 * 24),
                 )
                 print(f"Total tok/step: {world_size * cfg.batch_size * cfg.seq_length}")
+                print(flowovers[4][0,:32])
                 if cfg.tracker:
                     vals_to_track = {
                         "learning rate": current_lr,
