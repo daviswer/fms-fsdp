@@ -131,7 +131,11 @@ def train(
                 gen_data = True,
                 past_key_value_states = dec_cache,
             )
-            new_dec_input = torch.cat([dec_input[:,:1], new_dec_input[:,:-1]], dim=1)
+            bsize = dec_input.size(0)
+            new_dec_input = torch.cat([
+                dec_input.view(bsize, -1, 128)[:,:,:1], 
+                new_dec_input.view(bsize, -1, 128)[:,:,:-1],
+            ], dim=2).reshape(bsize, -1)
 
         # Do a parallel forward pass on the generated data
         output, embeds, dec_cache = model(history, corruption, torch.cat([dec_history, new_dec_input], dim=1))
