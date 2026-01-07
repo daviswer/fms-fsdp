@@ -51,6 +51,7 @@ class train_config:
     seed: int = 2023
     zl_coeff: float = 1e-4
     flowover_denom: float = 4
+    chunk_size: int = 128
 
     # continued training spec
     resuming_dataset: bool = False
