@@ -138,8 +138,8 @@ def train(
         output = output.logits if hasattr(output, "logits") else output
         pred = output.argmax(-1)  # b l
         if rank==0:
-            print(pred[:,:-1])
-            print(new_dec_input[:,1:])
+            print(pred[:,:32])
+            print(new_dec_input[:,1:33])
         time.sleep(5)
         assert False
 
