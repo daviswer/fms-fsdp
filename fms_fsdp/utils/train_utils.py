@@ -106,7 +106,7 @@ def train(
         flowover_loss = ce_loss(output[-b//flowover_denom:].view(-1, output.size(-1)), ground_truth[-b//flowover_denom:].view(-1).long())
         # Weight of base loss term starts at 1, and lowers to (n-1)/n, where n is flowover_denom
         # Weight of flowover loss starts at 0, and rises to 1/n
-        flowover_frac = 1/flowover_denom
+        flowover_frac = ((batch_idx/cfg.num_steps)**.5) / flowover_denom
         total_loss = (
             (1-flowover_frac) * loss 
             + flowover_frac * flowover_loss 
