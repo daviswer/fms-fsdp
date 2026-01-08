@@ -36,8 +36,8 @@ def causal_lm(data_seq, chunksize):
     dec_history = data_seq[:-chunksize-1]
     # cor = history.clone()
     src = gt.clone().view(-1,chunksize).tolist()
-    slack = torch.rand(len(src)).mul(chunksize//4).int()
-    rep = torch.rand(len(src)).mul(chunksize//8).int() + 1
+    slack = torch.rand(len(src)).pow(2).mul(chunksize//2).int()
+    rep = torch.rand(len(src)).pow(2).mul(chunksize//4).int() + 1
     cor = []
     for i,chunk in enumerate(src):
         nrep = ceil((chunksize-slack[i])/rep[i])
