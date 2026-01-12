@@ -152,9 +152,9 @@ def train(
         # 23645,   320,   279,  2322,   322,  2768,   198,  5406,   220,   220,
         #   220,   220,  4787,  3485,   527, 20178, 15480,  3485, 18141,   304,
         # 26451,   477,    11,   322,  4500,  8141,   279,   257]
-        prompt = torch.tensor(prompt, dtype=torch.int, device=local_rank)[None]
-        prior = torch.tensor(prior, dtype=torch.int, device=local_rank)[None]
-        samples = torch.tensor(samples, dtype=torch.int, device=local_rank)[None]
+        prompt = torch.tensor(prompt, dtype=torch.int, device=local_rank)#[None]
+        prior = torch.tensor(prior, dtype=torch.int, device=local_rank)#[None]
+        samples = torch.tensor(samples, dtype=torch.int, device=local_rank)#[None]
 
         tosave = [prompt.cpu(), samples.cpu()]
         with torch.no_grad():
