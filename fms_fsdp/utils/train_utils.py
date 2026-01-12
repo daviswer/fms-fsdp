@@ -82,9 +82,9 @@ def train(
         # dec_input = dec_input.to(local_rank)
         # ground_truth = ground_truth.to(local_rank)
         # corrupted = corrupted.to(local_rank)
-        prior = dec_input[:,:128]
-        prompt = ground_truth[:,:128]
-        samples = corrupted[:,128:]
+        prior = dec_input
+        prompt = ground_truth
+        samples = corrupted
         # # samples = ground_truth[:,128:]
         # prompt = [  279,  1561,   320,   697, 26451,     8, 23974,  1914,    13, 33043,
         #   323,  1005,   304,  2592,   323,  8026,   198,   322,   220,  7739,
