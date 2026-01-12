@@ -33,7 +33,7 @@ def causal_lm(data_seq):
     t = data_seq.clone()[1:]
     data_seq = data_seq[:-1]
     diff_seq = t.view(-1,128)
-    resample_interval = torch.rand(diff_seq.size(0),1).sqrt()
+    resample_interval = 0 #torch.rand(diff_seq.size(0),1).sqrt()
     resample_interval = torch.ones_like(diff_seq) * resample_interval
     resample_mask = torch.bernoulli(resample_interval).int()
     prev_shuffle = diff_seq.roll(1, dims=0)
