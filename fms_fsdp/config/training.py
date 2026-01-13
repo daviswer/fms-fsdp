@@ -34,6 +34,7 @@ class train_config:
     filter_exp: int = 2
     target_doclen: int = 8192
     slice_rate: float = 0.0
+    chunk_size: int = 128
 
     # fsdp policies
     sharding_strategy: str = "hsdp"
