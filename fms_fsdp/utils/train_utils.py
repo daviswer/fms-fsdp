@@ -157,13 +157,14 @@ def train(
         samples = torch.tensor(samples, dtype=torch.int, device=local_rank)#[None]
 
         tosave = [prompt.cpu(), samples.cpu()]
+        chunksize = 16
         with torch.no_grad():
-            _, cache = model(prompt[:,:128], prior[:,:128], use_cache=True)
+            _, cache = model(prompt[:,:chunksize], prior[:,:chunksize], use_cache=True)
             if rank==0:
                 print(f".   Cache retrieved. Len is {len(cache)}, sizes are {cache[0][0].shape} and {cache[-1][0].shape}")
-            pred = samples[:,128:].int()
+            pred = samples[:,chunksize:].int()
             for i in range(10):
-                pred, _ = model(pred, prompt[:,:128], use_cache=True, past_key_value_states=cache)
+                pred, _ = model(pred, prompt[:,:chunksize], use_cache=True, past_key_value_states=cache)
                 if rank==0:
                     print(f".   Step {i} pred: {pred}. Cache len {len(cache)}, cache size {cache[0][0].shape}")
                 tosave.append(pred.cpu())
