@@ -157,7 +157,7 @@ def train(
         samples = torch.tensor(samples, dtype=torch.int, device=local_rank)#[None]
 
         tosave = [prompt.cpu(), samples.cpu()]
-        chunksize = 16
+        chunksize = cfg.chunk_size
         with torch.no_grad():
             _, cache = model(prompt[:,:chunksize], prior[:,:chunksize], use_cache=True)
             if rank==0:

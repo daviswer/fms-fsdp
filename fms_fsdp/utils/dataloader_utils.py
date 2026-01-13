@@ -32,7 +32,7 @@ def causal_lm(data_seq):
     data_seq = torch.tensor(data_seq, dtype=torch.int)
     t = data_seq.clone()[1:]
     data_seq = data_seq[:-1]
-    chunksize = 16
+    chunksize = data_seq.size(0)//2
     diff_seq = t.view(-1,chunksize)
 
     resample_interval = 0 #torch.rand(diff_seq.size(0),1).sqrt()
