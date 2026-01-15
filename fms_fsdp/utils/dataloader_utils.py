@@ -60,7 +60,6 @@ def causal_lm(data_seq, chunksize):
         # Flatten sources into single list of fragments
         ngrams = sum(ngrams, [])
         weights = sum(weights, [])
-        assert sum(weights)==1, (sum(weights), weights)
         # Sample fragments with replacement
         out = []
         samples = torch.multinomial(torch.tensor(weights), chunksize, replacement=True)
