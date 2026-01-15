@@ -35,26 +35,26 @@ def causal_lm(data_seq):
     chunksize = data_seq.size(0)//2
     diff_seq = t.view(-1,chunksize)
 
-    resample_interval = 0 #torch.rand(diff_seq.size(0),1).sqrt()
-    resample_interval = torch.ones_like(diff_seq).float() * resample_interval
-    resample_mask = torch.bernoulli(resample_interval).int()
-    prev_shuffle = diff_seq.roll(1, dims=0)
-    prev_shuffle = torch.stack([x[0,torch.randperm(chunksize)] for x in prev_shuffle.split(1)], dim=0)
-    diff_seq = diff_seq*resample_mask + (1-resample_mask)*prev_shuffle
-    diff_seq = diff_seq.int()  # Should be redundant, but just to make sure
-    reorder_interval = torch.rand(diff_seq.size(0)).sqrt()
-    n_partitions = (1-reorder_interval).mul(chunksize).int()
-    out = []
-    for block,n in zip(diff_seq.split(1), n_partitions.split(1)):
-        signposts = torch.randperm(chunksize)[:n].tolist()
-        signposts = ([0] if len(signposts)==0 or min(signposts)!=0 else []) + sorted(signposts) + [chunksize]
-        new_block = [block[0,signposts[i]:signposts[i+1]] for i in range(len(signposts)-1)]
-        new_block = [new_block[i] for i in torch.randperm(len(new_block))]
-        out.append(torch.cat(new_block, dim=0))
-    diff_seq = torch.stack(out, dim=0).view(-1)
+    # resample_interval = 0 #torch.rand(diff_seq.size(0),1).sqrt()
+    # resample_interval = torch.ones_like(diff_seq).float() * resample_interval
+    # resample_mask = torch.bernoulli(resample_interval).int()
+    # prev_shuffle = diff_seq.roll(1, dims=0)
+    # prev_shuffle = torch.stack([x[0,torch.randperm(chunksize)] for x in prev_shuffle.split(1)], dim=0)
+    # diff_seq = diff_seq*resample_mask + (1-resample_mask)*prev_shuffle
+    # diff_seq = diff_seq.int()  # Should be redundant, but just to make sure
+    # reorder_interval = torch.rand(diff_seq.size(0)).sqrt()
+    # n_partitions = (1-reorder_interval).mul(chunksize).int()
+    # out = []
+    # for block,n in zip(diff_seq.split(1), n_partitions.split(1)):
+    #     signposts = torch.randperm(chunksize)[:n].tolist()
+    #     signposts = ([0] if len(signposts)==0 or min(signposts)!=0 else []) + sorted(signposts) + [chunksize]
+    #     new_block = [block[0,signposts[i]:signposts[i+1]] for i in range(len(signposts)-1)]
+    #     new_block = [new_block[i] for i in torch.randperm(len(new_block))]
+    #     out.append(torch.cat(new_block, dim=0))
+    # diff_seq = torch.stack(out, dim=0).view(-1)
 
-    # diff_seq = torch.ones_like(diff_seq) * diff_seq[:,:1]
-    # diff_seq = diff_seq.view(-1)
+    diff_seq = torch.ones_like(diff_seq) * diff_seq[:,:1]
+    diff_seq = diff_seq.view(-1)
     return data_seq, t, diff_seq
 
 
