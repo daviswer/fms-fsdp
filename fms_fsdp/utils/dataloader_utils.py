@@ -35,14 +35,52 @@ def causal_lm(data_seq, chunksize):
     dec_inp = data_seq[1+(chunksize-1):-1]
     dec_history = data_seq[:-chunksize-1]
     # cor = history.clone()
-    src = gt.clone().view(-1,chunksize).tolist()
-    slack = torch.rand(len(src)).pow(2).mul(chunksize//2).int()
-    rep = torch.rand(len(src)).pow(2).mul(chunksize//4).int() + 1
+
     cor = []
-    for i,chunk in enumerate(src):
-        nrep = ceil((chunksize-slack[i])/rep[i])
-        cor.append((chunk[:slack[i]] + chunk[slack[i]:slack[i]+rep[i]]*nrep)[:chunksize])
-    cor = torch.LongTensor(cor).view(-1)
+    ground = gt.view(-1, chunksize).tolist()  # b c
+    prev = history.view(-1, chunksize).tolist()  # b c
+    side = gt.view(-1, chunksize).roll(1, dims=0).tolist()  # b c
+    src = [ground, prev, side]
+    nchunks = len(ground)
+    for i in range(nchunks):
+        # For each chunk
+        src_i = [x[i] for x in src]
+        # Determine source sampling weights
+        w = torch.rand(2)
+        ground_w = w.min().item()
+        prev_w = w.max().sub(w.min()).item()
+        side_w = 1-w.max().item()
+        # Generate partitions for each source
+        n_partitions = torch.rand(3).mul(chunksize).int()
+        signposts = [torch.randperm(chunksize)[:n_p].tolist() for n_p in n_partitions]
+        signposts = [([0] if len(sp)==0 or min(sp)!=0 else []) + sorted(sp) + [chunksize] for sp in signposts]
+        # Split sources according to partitions
+        ngrams = [[x[sp[i]:sp[i+1]] for i in range(len(sp)-1)] for x,sp in zip(src_i, signposts)]
+        weights = [[w/len(ngrams[i])]*len(ngrams[i]) for i,w in enumerate([ground_w, prev_w, side_w])]
+        # Flatten sources into single list of fragments
+        ngrams = sum(ngrams, [])
+        weights = sum(weights, [])
+        assert sum(weights)==1, (sum(weights), weights)
+        # Sample fragments with replacement
+        out = []
+        samples = torch.multinomial(torch.tensor(weights), chunksize, replacement=True)
+        for j in range(chunksize):
+            out += ngrams[samples[j]]
+            if len(out) > chunksize:
+                break
+        out = out[:chunksize]
+        cor.append(out)
+    cor = torch.tensor(cor, dtype=torch.int).view(-1)
+
+
+    # src = gt.clone().view(-1,chunksize).tolist()
+    # slack = torch.rand(len(src)).pow(2).mul(chunksize//2).int()
+    # rep = torch.rand(len(src)).pow(2).mul(chunksize//4).int() + 1
+    # cor = []
+    # for i,chunk in enumerate(src):
+    #     nrep = ceil((chunksize-slack[i])/rep[i])
+    #     cor.append((chunk[:slack[i]] + chunk[slack[i]:slack[i]+rep[i]]*nrep)[:chunksize])
+    # cor = torch.LongTensor(cor).view(-1)
 
     # cor = []
     # gtpool = gt.view(-1,128)
