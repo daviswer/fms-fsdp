@@ -88,34 +88,36 @@ def train(
         history = history.to(local_rank)
         dec_history = dec_history.to(local_rank)
         corruption = corruption.to(local_rank)
-        if flowovers is None:
-            b = history.size(0)
-            flowovers = [x[:b//(flowover_denom-1)] for x in [history, ground_truth, dec_input, dec_history, corruption]]
-        history = torch.cat([history, flowovers[0]], dim=0)
-        ground_truth = torch.cat([ground_truth, flowovers[1]], dim=0)
-        dec_input = torch.cat([dec_input, flowovers[2]], dim=0)
-        dec_history = torch.cat([dec_history, flowovers[3]], dim=0)
-        corruption = torch.cat([corruption, flowovers[4]], dim=0)
+        # if flowovers is None:
+        #     b = history.size(0)
+        #     flowovers = [x[:b//(flowover_denom-1)] for x in [history, ground_truth, dec_input, dec_history, corruption]]
+        # history = torch.cat([history, flowovers[0]], dim=0)
+        # ground_truth = torch.cat([ground_truth, flowovers[1]], dim=0)
+        # dec_input = torch.cat([dec_input, flowovers[2]], dim=0)
+        # dec_history = torch.cat([dec_history, flowovers[3]], dim=0)
+        # corruption = torch.cat([corruption, flowovers[4]], dim=0)
         
 
         optimizer.zero_grad()
         output, embeds, dec_cache = model(history, corruption, torch.cat([dec_history,dec_input], dim=1))
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
-        loss = ce_loss(output[:-b//flowover_denom].view(-1, output.size(-1)), ground_truth[:-b//flowover_denom].view(-1).long())
-        flowover_loss = ce_loss(output[-b//flowover_denom:].view(-1, output.size(-1)), ground_truth[-b//flowover_denom:].view(-1).long())
-        # Weight of base loss term starts at 1, and lowers to (n-1)/n, where n is flowover_denom
-        # Weight of flowover loss starts at 0, and rises to 1/n
-        flowover_frac = ((batch_idx/cfg.num_steps)**.5) / flowover_denom
+        loss = ce_loss(output.view(-1, output.size(-1)), ground_truth.view(-1).long())
+        # loss = ce_loss(output[:-b//flowover_denom].view(-1, output.size(-1)), ground_truth[:-b//flowover_denom].view(-1).long())
+        # flowover_loss = ce_loss(output[-b//flowover_denom:].view(-1, output.size(-1)), ground_truth[-b//flowover_denom:].view(-1).long())
+        # # Weight of base loss term starts at 1, and lowers to (n-1)/n, where n is flowover_denom
+        # # Weight of flowover loss starts at 0, and rises to 1/n
+        # flowover_frac = ((batch_idx/cfg.num_steps)**.5) / flowover_denom
         total_loss = (
-            (1-flowover_frac) * loss 
-            + flowover_frac * flowover_loss 
+            loss
+            # (1-flowover_frac) * loss 
+            # + flowover_frac * flowover_loss 
             + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
         )
         total_loss.backward()
 
         ddp_stats[0] += loss.item()
-        ddp_stats[2] += flowover_loss.item()
+        # ddp_stats[2] += flowover_loss.item()
         ddp_stats[3] += 1
 
         ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
@@ -123,21 +125,21 @@ def train(
         scheduler.step()
 
         # Generate fresh flowover corruption data
-        with torch.no_grad():
-            ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
-            flowovers = [x[ids] for x in [history, ground_truth, dec_input, dec_history, corruption]]
-            embeds = embeds[ids]
-            dec_cache[0][0] = dec_cache[0][0][ids]
-            dec_cache[0][1] = dec_cache[0][1][ids]
-            dec_cache[1][0] = dec_cache[1][0][ids]
-            dec_cache[1][1] = dec_cache[1][1][ids]
-            flowovers[4] = model(
-                embeds,
-                None,
-                flowovers[2],
-                gen_data = True,
-                past_key_value_states = dec_cache,
-            )
+        # with torch.no_grad():
+        #     ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
+        #     flowovers = [x[ids] for x in [history, ground_truth, dec_input, dec_history, corruption]]
+        #     embeds = embeds[ids]
+        #     dec_cache[0][0] = dec_cache[0][0][ids]
+        #     dec_cache[0][1] = dec_cache[0][1][ids]
+        #     dec_cache[1][0] = dec_cache[1][0][ids]
+        #     dec_cache[1][1] = dec_cache[1][1][ids]
+        #     flowovers[4] = model(
+        #         embeds,
+        #         None,
+        #         flowovers[2],
+        #         gen_data = True,
+        #         past_key_value_states = dec_cache,
+        #     )
 
         if profiler:
             profiler.step()
