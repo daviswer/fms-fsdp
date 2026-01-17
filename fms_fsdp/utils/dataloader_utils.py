@@ -49,7 +49,7 @@ def causal_lm(data_seq, chunksize):
         w = torch.rand(2)
         ground_w = w.min().item()
         prev_w = w.max().sub(w.min()).item()
-        side_w = 0.01 #1-w.max().item()
+        side_w = 1-w.max().item()
         # Generate partitions for each source
         n_partitions = torch.rand(3).mul(chunksize).int()
         signposts = [torch.randperm(chunksize)[:n_p].tolist() for n_p in n_partitions]
