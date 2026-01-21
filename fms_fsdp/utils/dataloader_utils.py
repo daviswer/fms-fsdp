@@ -39,7 +39,7 @@ def causal_lm(data_seq, chunksize):
     cor = []
     ground = gt.view(-1, chunksize).tolist()  # b c
     prev = history.view(-1, chunksize).tolist()  # b c
-    side = gt.view(-1, chunksize).roll(1, dims=0).tolist()  # b c
+    side = gt.view(-1, chunksize).roll(gt.size(0)//chunksize, dims=0).tolist()  # b c
     src = [ground, prev, side]
     nchunks = len(ground)
     for i in range(nchunks):
