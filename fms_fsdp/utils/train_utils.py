@@ -73,7 +73,7 @@ def train(
                 run["hparams"] = asdict(cfg)
 
     model.train()
-    ddp_stats = torch.zeros(3).to(local_rank)
+    ddp_stats = torch.zeros(5).to(local_rank)
     if cp_degree > 1:
         cp_rank = rank % cp_degree
         local_len = cfg.seq_length // cp_degree
@@ -91,12 +91,10 @@ def train(
         label = label.to(local_rank)
 
         optimizer.zero_grad()
-        output = model(input, position_ids=posids)
+        dumb_loss, true_loss, loss = model(input, label, position_ids=posids, zl_coeff=cfg.zl_coeff)
         output = output.logits if hasattr(output, "logits") else output
-        ce_loss = torch.nn.CrossEntropyLoss()
-        loss = ce_loss(output.view(-1, output.size(-1)), label.view(-1).long())
-        loss = loss + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
-        loss.backward()
+        
+        (.75*loss + .25*dumb_loss).backward()
 
         ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
         optimizer.step()
@@ -104,14 +102,18 @@ def train(
 
         ddp_stats[0] += loss.item()
         ddp_stats[2] += 1
+        ddp_stats[3] += dumb_loss.item()
+        ddp_stats[4] += true_loss.item()
 
         if profiler:
             profiler.step()
 
         if batch_idx % cfg.report_interval == 0:
             dist.all_reduce(ddp_stats, op=dist.ReduceOp.SUM)
-            train_loss = ddp_stats[0] / ddp_stats[2]
-            g_norm = ddp_stats[1] / ddp_stats[2]
+            train_loss = ddp_stats[0].div(ddp_stats[2]).item()
+            true_loss = ddp_stats[4].div(ddp_stats[2]).item()
+            dumb_loss = ddp_stats[3].div(ddp_stats[2]).item()
+            g_norm = ddp_stats[1].div(ddp_stats[2]).item()
             elapsed_time = time.time() - loop_start
             world_size = int(os.environ["WORLD_SIZE"])
             new_tokens_seen = (
@@ -123,9 +125,7 @@ def train(
             )
             if rank == 0:
                 total_tokens_seen = tokens_seen + new_tokens_seen
-                current_loss = train_loss.item()
                 current_lr = scheduler.get_last_lr()[0]
-                current_gnorm = g_norm.item()
                 current_step_time = (time.time() - start) / cfg.report_interval
                 overall_step_time = elapsed_time / (batch_idx - start_step)
                 current_throughput = int(
@@ -142,10 +142,12 @@ def train(
                 )
 
                 print("step:", batch_idx)
-                print("loss:", current_loss)
+                print("loss:", train_loss)
+                print("dumb loss:", dumb_loss)
+                print("true loss:", true_loss)
                 print("LR:", current_lr)
                 print("tokens seen:", total_tokens_seen)
-                print("gradient norm:", current_gnorm)
+                print("gradient norm:", g_norm)
                 print("reserved memory:", reserved_mem)
                 print("allocated memory:", allocated_mem)
                 print("current step time:", current_step_time)
@@ -160,8 +162,10 @@ def train(
                 if cfg.tracker:
                     vals_to_track = {
                         "learning rate": current_lr,
-                        "loss": current_loss,
-                        "gradient norm": current_gnorm,
+                        "loss": train_loss,
+                        "dumb loss": dumb_loss,
+                        "true loss": true_loss,
+                        "gradient norm": g_norm,
                         "token seen": total_tokens_seen,
                         "current throughput (token per gpu per sec)": current_throughput,
                         "overall throughput (token per gpu per sec)": overall_throughput,
