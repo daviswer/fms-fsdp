@@ -39,7 +39,8 @@ def causal_lm(data_seq, chunksize):
     cor = []
     ground = gt.view(-1, chunksize).tolist()  # b c
     prev = history.view(-1, chunksize).tolist()  # b c
-    side = gt.view(-1, chunksize).roll(gt.size(0)//chunksize, dims=0).tolist()  # b c
+    side_sample = torch.rand(gt.size(0)//chunksize).mul(data_seq.size(0)-chunksize).int().tolist()
+    side = [data_seq[i:i+chunksize].tolist() for i in side_sample]  # b c
     src = [ground, prev, side]
     nchunks = len(ground)
     for i in range(nchunks):
