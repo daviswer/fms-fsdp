@@ -130,7 +130,7 @@ def main(**kwargs):
         param_init_fn=param_init_fn,
     )
     # we need this post-fsdp call to avoid graph break with torch.compile, until we figure out a better solution.
-    model.rot_emb.compute_freqs_cis(
+    model.base_model.rot_emb.compute_freqs_cis(
         torch.device("cuda", torch.cuda.current_device()),
         model.config.max_expected_seq_len,
     )
