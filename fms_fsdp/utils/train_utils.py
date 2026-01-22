@@ -92,7 +92,6 @@ def train(
 
         optimizer.zero_grad()
         dumb_loss, true_loss, loss = model(input, label, position_ids=posids, zl_coeff=cfg.zl_coeff)
-        output = output.logits if hasattr(output, "logits") else output
         
         (.75*loss + .25*dumb_loss).backward()
 
