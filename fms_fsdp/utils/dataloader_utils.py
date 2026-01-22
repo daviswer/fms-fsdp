@@ -47,13 +47,14 @@ def causal_lm(data_seq, chunksize):
         # For each chunk
         src_i = [x[i] for x in src]
         # Determine source sampling weights
-        w = torch.rand(2)
-        ground_w = w.min().item()
-        prev_w = w.max().sub(w.min()).item()
-        side_w = 1-w.max().item()
+        t = torch.rand(1)
+        c = 1.4150375
+        ground_w = t**c
+        prev_w = (1-t)**c
+        side_w = 1-ground_w-prev_w
         # Generate partitions for each source
-        n_partitions = torch.rand(3).mul(chunksize).int()
-        signposts = [torch.randperm(chunksize)[:n_p].tolist() for n_p in n_partitions]
+        n_partitions = torch.rand(3).mul(1-t).mul(chunksize).int()
+        signposts = [torch.randperm(chunksize)[:n_p.item()].tolist() for n_p in n_partitions]
         signposts = [([0] if len(sp)==0 or min(sp)!=0 else []) + sorted(sp) + [chunksize] for sp in signposts]
         # Split sources according to partitions
         ngrams = [[x[sp[i]:sp[i+1]] for i in range(len(sp)-1)] for x,sp in zip(src_i, signposts)]
