@@ -93,7 +93,7 @@ def train(
         optimizer.zero_grad()
         dumb_loss, true_loss, loss = model(input, label, position_ids=posids, zl_coeff=cfg.zl_coeff)
         
-        (.75*loss + .25*dumb_loss).backward()
+        (loss + .2*dumb_loss).backward()
 
         ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
         optimizer.step()
