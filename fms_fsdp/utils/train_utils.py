@@ -87,6 +87,8 @@ def train(
     for batch_idx, (input, label) in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
+        if batch_idx==0:
+            print(model.mlp.mlp[3].weight.mean())
         input = input.to(local_rank)
         label = label.to(local_rank)
 
