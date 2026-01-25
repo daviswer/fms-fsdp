@@ -8,8 +8,7 @@ from fms.modules.head import CFGHead, LinearClassificationHead
 
 # for details, read https://github.com/foundation-model-stack/fms-fsdp/issues/64
 def param_init_function(module):
-    if isinstance(module, CFGHead):
-        print(".   Found CFGHead")
+    print(".   GOTHERE")
     if (
         isinstance(module, MultiHeadAttention)
         or isinstance(module, Embedding)
