@@ -15,6 +15,8 @@ def param_init_function(module):
         or isinstance(module, LayerNormParameterized)
         or isinstance(module, MLPClassificationHead)
     ):
+        if isinstance(module, MLPClassificationHead):
+            print("FOUND THE MODULE")
         module.to_empty(device=torch.cuda.current_device())
         with torch.no_grad():
             module.reset_parameters()
