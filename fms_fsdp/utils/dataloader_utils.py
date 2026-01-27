@@ -35,6 +35,8 @@ def causal_lm(data_seq):
     chunksize = data_seq.size(0)//2
     diff_seq = t.view(-1,chunksize)
 
+    diff_seq = diff_seq.roll(1, dims=0)[:,torch.randperm(chunksize)]
+
     # resample_interval = 0 #torch.rand(diff_seq.size(0),1).sqrt()
     # resample_interval = torch.ones_like(diff_seq).float() * resample_interval
     # resample_mask = torch.bernoulli(resample_interval).int()
@@ -53,7 +55,7 @@ def causal_lm(data_seq):
     #     out.append(torch.cat(new_block, dim=0))
     # diff_seq = torch.stack(out, dim=0).view(-1)
 
-    diff_seq = torch.ones_like(diff_seq) * diff_seq[:,:1]
+    # diff_seq = torch.ones_like(diff_seq) * diff_seq[:,:1]
     diff_seq = diff_seq.view(-1)
     return data_seq, t, diff_seq
 
