@@ -84,6 +84,7 @@ def train(
     start = time.time()
     loop_start = time.time()
     train_loss = -1
+    mtp_weight = 0 if cfg.mtp_denom==0 else 1/cfg.mtp_denom
     for batch_idx, (input, label) in enumerate(train_loader, start=start_step + 1):
         if batch_idx > cfg.num_steps:
             break
@@ -93,7 +94,7 @@ def train(
         optimizer.zero_grad()
         dumb_loss, true_loss, loss = model(input, label, position_ids=posids, zl_coeff=cfg.zl_coeff)
         
-        (loss + .2*dumb_loss).backward()
+        (loss*(1-mtp_weight) + mtp_weight*dumb_loss).backward()
 
         ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
         optimizer.step()
@@ -171,6 +172,8 @@ def train(
                         "gpu reserved memory": reserved_mem,
                         "gpu allocated memory": allocated_mem,
                     }
+                    if mtp_weight == 0:
+                        vals_to_track.pop("dumb loss")
                     if cfg.tracker == "wandb":
                         tracker_fn = wandb.log
                     elif cfg.tracker == "aim":
