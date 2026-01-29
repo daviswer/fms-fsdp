@@ -50,7 +50,7 @@ class train_config:
     grad_clip_thresh: float = 1.0
     seed: int = 2023
     zl_coeff: float = 1e-4
-    mix_denom: float = 2.0
+    avg_denom: float = 2.0
     mtp_denom: float = 5.0
 
     # continued training spec
