@@ -96,7 +96,7 @@ def main(**kwargs):
 
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
-    llama_config.mix_denom = cfg.mix_denom
+    llama_config.mix_denom = cfg.avg_denom
     if cfg.low_cpu_fsdp:
         with torch.device("meta"):
             model = LLaMA(llama_config, cp_mesh=cp_mesh)
