@@ -90,7 +90,7 @@ def train(
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output.view(-1, output.size(-1)), label.view(-1).long())
         loss = loss + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
-        loss.add(.1*aux).backward()
+        loss.backward()
 
         ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
         optimizer.step()
