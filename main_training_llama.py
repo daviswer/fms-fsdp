@@ -60,7 +60,8 @@ def main(**kwargs):
 
     # get fms model
     llama_config = get_model_config(cfg.model_variant)
-    llama_config.sparsity = cfg.aux_sparsity
+    llama_config.prune = cfg.prune
+    llama_config.prune_thresh = cfg.prune_thresh
     if cfg.low_cpu_fsdp:
         with torch.device("meta"):
             model = LLaMA(llama_config)

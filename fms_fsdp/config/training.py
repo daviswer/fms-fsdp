@@ -50,7 +50,8 @@ class train_config:
     grad_clip_thresh: float = 1.0
     seed: int = 2023
     zl_coeff: float = 1e-4
-    aux_sparsity: float = 0.1
+    prune_thresh: float = 0.001
+    prune: bool = False
 
     # continued training spec
     resuming_dataset: bool = False
