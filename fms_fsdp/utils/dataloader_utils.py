@@ -14,6 +14,7 @@ from fms_fsdp.utils.dataset_utils import (
     SamplingDataset,
     ScalableShardDataset,
     StreamingDocDataset,
+    _StatefulDataset,
 )
 
 
@@ -87,64 +88,77 @@ def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
         world_size = dp_degree
         rank = rank // cp_worldsize
 
-    datasets, weights, cols = parse_data_args(cfg.datasets, cfg.weights, cfg.col_name)
+    class DummyDataset(_StatefulDataset):
+        def setup(self):
+            super().setup()
+            seqrange = torch.load(self.datapath)
+            self.dataset = seqrange[(self.rank*len(seqrange))//self.worldsize : ((self.rank+1)*len(seqrange))//self.worldsize]
+        def __iter__(self):
+            self.setup()
+            for seq in self.dataset:
+                yield seq
+            yield StopIteration
 
-    # Base streaming dataset. Returns doc chunks in sequence.
-    # Implements dataset sampling and rescalability.
-    droplist = [
-        int(x.strip()) for x in cfg.strip_tokens.split(",") if len(x.strip()) > 0
-    ]
-    droplist = droplist + [cfg.bos_token, cfg.eos_token, cfg.bol_token, cfg.eol_token]
-    assert (
-        cfg.file_type in _handler_map
-    ), f"File type {cfg.file_type} is not recognized ({list(_handler_map.keys())})"
-    if cfg.file_type == "hf_parquet" or cfg.file_type == "auto":
-        filehandler = _handler_map[cfg.file_type](
-            cfg.tokenizer_path, cols, cfg.doc_cutoff
-        )
-    else:
-        filehandler = _handler_map[cfg.file_type](cols)
-    # Base reader layer
-    data = StreamingDocDataset(
-        cfg.data_path,
-        rank,
-        world_size,
-        filehandler,
-        cfg.eos_token,
-        bos_token=cfg.bos_token,
-        strip_tokens=set(droplist),
-        max_consecutive_chunks=ceil(max(cfg.seq_length,cfg.doc_breakpoint)/1024),
-        min_length=cfg.target_doclen,
-        seed=cfg.seed,
-        filter_exp=cfg.filter_exp,
-        metadata_path=cfg.data_meta_path,
-    )
-    # Add rescaling/resharding
-    data = ScalableShardDataset(
-        data,
-        cfg.eos_token,
-        n_logical_shards=cfg.logical_shards,
-    )
-    # Add multi-dataset handling
-    data = SamplingDataset(
-        cfg.data_path,
-        data,
-        cfg.eos_token,
-        datasets=datasets,
-        weights=weights,
-        verbose=(rank == 0),
-    )
-    # Wrap above dataset in packing logic to form constant-length lines.
-    # Increment seq len to counteract CLM's one token removal.
-    data = BufferDataset(
-        data,
-        cfg.seq_length + 1,
-        bos_token=cfg.bol_token,
-        eos_token=cfg.eol_token,
-        pack_hard=True,
-    )
-    # Shuffle outputs in length 10k buffer. Consecutive lines appear 10k steps apart on average.
-    data = PreloadBufferDataset(data, 1000)
+    data = DummyDataset(cfg.data_path, rank, world_size)
+
+    # datasets, weights, cols = parse_data_args(cfg.datasets, cfg.weights, cfg.col_name)
+
+    # # Base streaming dataset. Returns doc chunks in sequence.
+    # # Implements dataset sampling and rescalability.
+    # droplist = [
+    #     int(x.strip()) for x in cfg.strip_tokens.split(",") if len(x.strip()) > 0
+    # ]
+    # droplist = droplist + [cfg.bos_token, cfg.eos_token, cfg.bol_token, cfg.eol_token]
+    # assert (
+    #     cfg.file_type in _handler_map
+    # ), f"File type {cfg.file_type} is not recognized ({list(_handler_map.keys())})"
+    # if cfg.file_type == "hf_parquet" or cfg.file_type == "auto":
+    #     filehandler = _handler_map[cfg.file_type](
+    #         cfg.tokenizer_path, cols, cfg.doc_cutoff
+    #     )
+    # else:
+    #     filehandler = _handler_map[cfg.file_type](cols)
+    # # Base reader layer
+    # data = StreamingDocDataset(
+    #     cfg.data_path,
+    #     rank,
+    #     world_size,
+    #     filehandler,
+    #     cfg.eos_token,
+    #     bos_token=cfg.bos_token,
+    #     strip_tokens=set(droplist),
+    #     max_consecutive_chunks=ceil(max(cfg.seq_length,cfg.doc_breakpoint)/1024),
+    #     min_length=cfg.target_doclen,
+    #     seed=cfg.seed,
+    #     filter_exp=cfg.filter_exp,
+    #     metadata_path=cfg.data_meta_path,
+    # )
+    # # Add rescaling/resharding
+    # data = ScalableShardDataset(
+    #     data,
+    #     cfg.eos_token,
+    #     n_logical_shards=cfg.logical_shards,
+    # )
+    # # Add multi-dataset handling
+    # data = SamplingDataset(
+    #     cfg.data_path,
+    #     data,
+    #     cfg.eos_token,
+    #     datasets=datasets,
+    #     weights=weights,
+    #     verbose=(rank == 0),
+    # )
+    # # Wrap above dataset in packing logic to form constant-length lines.
+    # # Increment seq len to counteract CLM's one token removal.
+    # data = BufferDataset(
+    #     data,
+    #     cfg.seq_length + 1,
+    #     bos_token=cfg.bol_token,
+    #     eos_token=cfg.eol_token,
+    #     pack_hard=True,
+    # )
+    # # Shuffle outputs in length 10k buffer. Consecutive lines appear 10k steps apart on average.
+    # data = PreloadBufferDataset(data, 1000)
 
     # Apply FIM transformation if needed
     if fim_training:
@@ -158,13 +172,13 @@ def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
             suf_token=cfg.fim_suf,
         )
 
-    # Slice and rearrange docs to force long-context retrieval
-    if cfg.slice_rate > 0:
-        data = DocSliceDataset(
-            data,
-            cfg.eos_token,
-            slice_rate=cfg.slice_rate,
-        )
+    # # Slice and rearrange docs to force long-context retrieval
+    # if cfg.slice_rate > 0:
+    #     data = DocSliceDataset(
+    #         data,
+    #         cfg.eos_token,
+    #         slice_rate=cfg.slice_rate,
+    #     )
 
     # Transform to tensors
     data = PreprocessDataset(data, torch.IntTensor)
@@ -178,14 +192,14 @@ def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
             return x[(cp_rank*x.size(0))//cp_worldsize : ((cp_rank+1)*x.size(0))//cp_worldsize]
         data = PreprocessDataset(data, lambda x: (chunk(x[0]), chunk(x[1])))
 
-    # Enable auto-saving
-    data = CheckpointDataset(
-        data,
-        cfg.ckpt_load_path if cfg.resuming_dataset else cfg.ckpt_save_path,
-        cfg.checkpoint_interval,
-        cfg.batch_size,
-        cfg.ckpt_save_path,
-    )
+    # # Enable auto-saving
+    # data = CheckpointDataset(
+    #     data,
+    #     cfg.ckpt_load_path if cfg.resuming_dataset else cfg.ckpt_save_path,
+    #     cfg.checkpoint_interval,
+    #     cfg.batch_size,
+    #     cfg.ckpt_save_path,
+    # )
     return torch.utils.data.DataLoader(
         data, num_workers=cfg.num_workers, batch_size=cfg.batch_size
     )
