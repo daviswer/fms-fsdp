@@ -141,15 +141,13 @@ def train(
                 print("step:", batch_idx)
                 print("loss:", current_loss)
                 print("aux loss:", current_aux)
+                print("thresh:", cfg.prune_thresh)
+                print("pruning:", cfg.prune)
                 print("LR:", current_lr)
                 print("tokens seen:", total_tokens_seen)
                 print("gradient norm:", current_gnorm)
-                print("reserved memory:", reserved_mem)
-                print("allocated memory:", allocated_mem)
                 print("current step time:", current_step_time)
-                print("overall step time:", overall_step_time)
                 print("current token per gpu per sec:", current_throughput)
-                print("overall token per gpu per sec:", overall_throughput)
                 print(
                     "overall token per day:",
                     int(new_tokens_seen / elapsed_time * 3600 * 24),
