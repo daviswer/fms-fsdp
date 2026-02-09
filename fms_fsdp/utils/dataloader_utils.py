@@ -98,9 +98,9 @@ def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
             self.dataset = seqrange[(self.rank*len(seqrange))//self.worldsize : ((self.rank+1)*len(seqrange))//self.worldsize]
         def __iter__(self):
             self.setup()
-            for seq in self.dataset:
-                yield seq
-            yield StopIteration
+            while True:
+                for seq in self.dataset:
+                    yield seq
 
     data = DummyDataset(cfg.data_path, cfg.tokenizer_path, rank, world_size)
 
