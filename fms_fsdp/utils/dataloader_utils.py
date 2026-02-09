@@ -89,9 +89,6 @@ def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
         rank = rank // cp_worldsize
 
     class DummyDataset(_StatefulDataset):
-        def __init__(self, datapath, rank, worldsize):
-            super().__init__(None, rank, worldsize)
-            self.datapath = datapath
         def setup(self):
             super().setup()
             seqrange = torch.load(self.datapath)
@@ -102,7 +99,7 @@ def get_data_loader(cfg, rank, world_size, dp_degree, postprocess=[causal_lm]):
                 yield seq
             yield StopIteration
 
-    data = DummyDataset(cfg.data_path, rank, world_size)
+    data = DummyDataset(cfg.tokenizer_path, rank, world_size)
 
     # datasets, weights, cols = parse_data_args(cfg.datasets, cfg.weights, cfg.col_name)
 
