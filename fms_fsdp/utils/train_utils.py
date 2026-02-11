@@ -195,7 +195,11 @@ def train(
                 )
                 print(f"Total tok/step: {world_size * cfg.batch_size * cfg.seq_length}")
                 for i in [0,1024,2048,3072]:
-                    print(flowovers[0][0,i+cfg.chunk_size-32:i+cfg.chunk_size].tolist() + [128000] + flowovers[4][0,i:i+64].tolist())
+                    print(
+                        flowovers[0][0,i+cfg.chunk_size-min(cfg.chunk_size,32):i+cfg.chunk_size].tolist() 
+                        + [128000] 
+                        + flowovers[4][0,i:i+min(cfg.chunk_size,64)].tolist()
+                    )
                 print()
                 print(history[0,:cfg.chunk_size])
                 print(corruption[0,:cfg.chunk_size])
