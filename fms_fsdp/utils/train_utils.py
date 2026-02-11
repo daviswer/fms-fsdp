@@ -102,8 +102,8 @@ def train(
         output, embeds, dec_cache = model(history, corruption, torch.cat([dec_history,dec_input], dim=1))
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
-        loss = ce_loss(output[:-b//flowover_denom].view(-1, output.size(-1)), ground_truth[:-b//flowover_denom].view(-1).long())
-        flowover_loss = ce_loss(output[-b//flowover_denom:].view(-1, output.size(-1)), ground_truth[-b//flowover_denom:].view(-1).long())
+        loss = ce_loss(output[:b].view(-1, output.size(-1)), ground_truth[:b].view(-1).long())
+        flowover_loss = ce_loss(output[b:].view(-1, output.size(-1)), ground_truth[b:].view(-1).long())
         # Weight of base loss term starts at 1, and lowers to (n-1)/n, where n is flowover_denom
         # Weight of flowover loss starts at 0, and rises to 1/n
         flowover_frac = ((batch_idx/cfg.num_steps)**.5) / flowover_denom
