@@ -43,14 +43,17 @@ def causal_lm(data_seq, chunksize):
     side = [data_seq[i:i+chunksize].tolist() for i in side_sample]  # b c
     src = [ground, side]
     nchunks = len(ground)
+    gt_rate_0 = 1/3
     for i in range(nchunks):
         # For each chunk
         src_i = [torch.tensor(x[i], dtype=torch.int) for x in src]
         # Build sampling masks
         t = torch.rand(1)
-        resample_mask = torch.bernoulli(torch.ones(2,chunksize)*(1-t)).int()
-        out = src_i[1]*resample_mask[0] + (1-resample_mask[0])*src_i[0]
-        out = 128001*resample_mask[1] + (1-resample_mask[1])*out
+        gt_rate = gt_rate_0 + t * (1-gt_rate_0)
+        side_mask = torch.bernoulli(torch.ones(2,chunksize)*(gt_rate)).int()
+        out = src_i[0]*side_mask + (1-side_mask)*src_i[1]
+        mask_mask = torch.bernoulli(torch.ones(2,chunksize)*(1-t)).int()
+        out = 128001*mask_mask + (1-mask_mask)*out
         cor.append(out)
     cor = torch.cat(cor, dim=0)
 
