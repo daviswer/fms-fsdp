@@ -116,7 +116,7 @@ def train(
         total_loss.backward()
 
         ddp_stats[0] += loss.item()
-        ddp_stats[2] += flowover_loss.item()
+        # ddp_stats[2] += flowover_loss.item()
         ddp_stats[3] += 1
 
         ddp_stats[1] += model.clip_grad_norm_(cfg.grad_clip_thresh).item()
