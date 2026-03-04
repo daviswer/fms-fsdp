@@ -49,6 +49,7 @@ def causal_lm(data_seq, chunksize):
         # Build sampling masks
         t = torch.rand(1)
         resample_mask = torch.bernoulli(torch.ones(2,chunksize)*(1-t)).int()
+        print(src_i, resample_mask)
         out = src_i[1]*resample_mask[0] + (1-resample_mask[0])*src_i[0]
         out = 128001*resample_mask[1] + (1-resample_mask[1])*out
         cor.append(out)
