@@ -103,15 +103,16 @@ def train(
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output[:b].view(-1, output.size(-1)), ground_truth[:b].view(-1).long())
-        flowover_loss = ce_loss(output[b:].view(-1, output.size(-1)), ground_truth[b:].view(-1).long())
-        # Weight of base loss term starts at 1, and lowers to (n-1)/n, where n is flowover_denom
-        # Weight of flowover loss starts at 0, and rises to 1/n
-        flowover_frac = ((batch_idx/cfg.num_steps)**.5) / flowover_denom
-        total_loss = (
-            (1-flowover_frac) * loss 
-            + flowover_frac * flowover_loss 
-            + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
-        )
+        # flowover_loss = ce_loss(output[b:].view(-1, output.size(-1)), ground_truth[b:].view(-1).long())
+        # # Weight of base loss term starts at 1, and lowers to (n-1)/n, where n is flowover_denom
+        # # Weight of flowover loss starts at 0, and rises to 1/n
+        # flowover_frac = ((batch_idx/cfg.num_steps)**.5) / flowover_denom
+        # total_loss = (
+        #     (1-flowover_frac) * loss 
+        #     + flowover_frac * flowover_loss 
+        #     + cfg.zl_coeff * torch.logsumexp(output, dim=-1).pow(2).mean()
+        # )
+        total_loss = loss
         total_loss.backward()
 
         ddp_stats[0] += loss.item()
@@ -122,22 +123,22 @@ def train(
         optimizer.step()
         scheduler.step()
 
-        # Generate fresh flowover corruption data
-        with torch.no_grad():
-            ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
-            flowovers = [x[ids] for x in [history, ground_truth, dec_input, dec_history, corruption]]
-            embeds = embeds[ids]
-            dec_cache[0][0] = dec_cache[0][0][ids]
-            dec_cache[0][1] = dec_cache[0][1][ids]
-            dec_cache[1][0] = dec_cache[1][0][ids]
-            dec_cache[1][1] = dec_cache[1][1][ids]
-            flowovers[4] = model(
-                embeds,
-                None,
-                flowovers[2],
-                gen_data = True,
-                past_key_value_states = dec_cache,
-            )
+        # # Generate fresh flowover corruption data
+        # with torch.no_grad():
+        #     ids = torch.randperm(history.size(0)).to(local_rank)[:history.size(0)//flowover_denom]
+        #     flowovers = [x[ids] for x in [history, ground_truth, dec_input, dec_history, corruption]]
+        #     embeds = embeds[ids]
+        #     dec_cache[0][0] = dec_cache[0][0][ids]
+        #     dec_cache[0][1] = dec_cache[0][1][ids]
+        #     dec_cache[1][0] = dec_cache[1][0][ids]
+        #     dec_cache[1][1] = dec_cache[1][1][ids]
+        #     flowovers[4] = model(
+        #         embeds,
+        #         None,
+        #         flowovers[2],
+        #         gen_data = True,
+        #         past_key_value_states = dec_cache,
+        #     )
 
         if profiler:
             profiler.step()
@@ -179,7 +180,7 @@ def train(
 
                 print("step:", batch_idx)
                 print("loss:", current_loss)
-                print("flowover loss:", flowover_loss)
+                # print("flowover loss:", flowover_loss)
                 print("LR:", current_lr)
                 print("tokens seen:", total_tokens_seen)
                 print("gradient norm:", current_gnorm)
@@ -194,12 +195,12 @@ def train(
                     int(new_tokens_seen / elapsed_time * 3600 * 24),
                 )
                 print(f"Total tok/step: {world_size * cfg.batch_size * cfg.seq_length}")
-                for i in [0,1024,2048,3072]:
-                    print(
-                        flowovers[0][0,i+cfg.chunk_size-min(cfg.chunk_size,32):i+cfg.chunk_size].tolist() 
-                        + [128000] 
-                        + flowovers[4][0,i:i+min(cfg.chunk_size,64)].tolist()
-                    )
+                # for i in [0,1024,2048,3072]:
+                #     print(
+                #         flowovers[0][0,i+cfg.chunk_size-min(cfg.chunk_size,32):i+cfg.chunk_size].tolist() 
+                #         + [128000] 
+                #         + flowovers[4][0,i:i+min(cfg.chunk_size,64)].tolist()
+                #     )
                 print()
                 print(history[0,:cfg.chunk_size])
                 print(corruption[0,:cfg.chunk_size])
@@ -208,7 +209,7 @@ def train(
                     vals_to_track = {
                         "learning rate": current_lr,
                         "loss": current_loss,
-                        "flowover loss": flowover_loss,
+                        # "flowover loss": flowover_loss,
                         "gradient norm": current_gnorm,
                         "token seen": total_tokens_seen,
                         "current throughput (token per gpu per sec)": current_throughput,
