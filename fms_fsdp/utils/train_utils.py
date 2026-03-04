@@ -202,8 +202,8 @@ def train(
                 #         + flowovers[4][0,i:i+min(cfg.chunk_size,64)].tolist()
                 #     )
                 print()
-                print(history[0,:cfg.chunk_size])
-                print(corruption[0,:cfg.chunk_size])
+                print(history[0,:cfg.chunk_size].tolist())
+                print([0 if x==128001 else x for x in corruption[0,:cfg.chunk_size].tolist()])
                 print()
                 if cfg.tracker:
                     vals_to_track = {
