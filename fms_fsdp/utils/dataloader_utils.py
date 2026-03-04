@@ -38,87 +38,20 @@ def causal_lm(data_seq, chunksize):
 
     cor = []
     ground = gt.view(-1, chunksize).tolist()  # b c
-    prev = history.view(-1, chunksize).tolist()  # b c
+    # prev = history.view(-1, chunksize).tolist()  # b c
     side_sample = torch.rand(gt.size(0)//chunksize).mul(data_seq.size(0)-chunksize).int().tolist()
     side = [data_seq[i:i+chunksize].tolist() for i in side_sample]  # b c
-    src = [ground, prev, side]
+    src = [ground, side]
     nchunks = len(ground)
     for i in range(nchunks):
         # For each chunk
         src_i = [x[i] for x in src]
-        # Determine source sampling weights
-        t = torch.rand(1)
-        ground_w = t
-        prev_w = (1-t)**2
-        side_w = t-t**2
-        # Generate partitions for each source
-        n_partitions = chunksize/(1+(chunksize/2-1)*t)-1
-        n_partitions = torch.ones(3).mul(n_partitions).int().add(torch.rand(3).le(n_partitions-n_partitions.int()))
-        signposts = [torch.randperm(chunksize)[:n_p.item()].tolist() for n_p in n_partitions]
-        signposts = [([0] if len(sp)==0 or min(sp)!=0 else []) + sorted(sp) + [chunksize] for sp in signposts]
-        # Split sources according to partitions
-        ngrams = [[x[sp[i]:sp[i+1]] for i in range(len(sp)-1)] for x,sp in zip(src_i, signposts)]
-        weights = [[w/len(ngrams[i])]*len(ngrams[i]) for i,w in enumerate([ground_w, prev_w, side_w])]
-        # Flatten sources into single list of fragments
-        ngrams = sum(ngrams, [])
-        weights = sum(weights, [])
-        # Sample fragments with replacement
-        out = []
-        samples = torch.multinomial(torch.tensor(weights), chunksize, replacement=True)
-        for j in range(chunksize):
-            out += ngrams[samples[j]]
-            if len(out) > chunksize:
-                break
-        out = out[:chunksize]
+        # Build sampling masks
+        resample_mask = torch.bernoulli(torch.ones(2,chunksize)*(1-t)).int()
+        out = src[1]*resample_mask[0] + (1-resample_mask[0])*src[0]
+        out = 128001*resample_mask[1] + (1-resample_mask[1])*out
         cor.append(out)
     cor = torch.tensor(cor, dtype=torch.int).view(-1)
-
-
-    # src = gt.clone().view(-1,chunksize).tolist()
-    # slack = torch.rand(len(src)).pow(2).mul(chunksize//2).int()
-    # rep = torch.rand(len(src)).pow(2).mul(chunksize//4).int() + 1
-    # cor = []
-    # for i,chunk in enumerate(src):
-    #     nrep = ceil((chunksize-slack[i])/rep[i])
-    #     cor.append((chunk[:slack[i]] + chunk[slack[i]:slack[i]+rep[i]]*nrep)[:chunksize])
-    # cor = torch.LongTensor(cor).view(-1)
-
-    # cor = []
-    # gtpool = gt.view(-1,128)
-    # histpool = history.view(-1,128)
-    # for j in range(gtpool.size(0)):
-    #     chunk = []
-    #     # Form subchunks
-    #     history_interval = torch.rand(1)
-    #     n_partitions = torch.rand(1).mul(128).int()
-    #     signposts = torch.randperm(128)[:n_partitions].tolist()
-    #     signposts = ([0] if len(signposts)==0 or min(signposts)!=0 else []) + sorted(signposts) + [128]
-    #     while len(chunk) < 128:
-    #         # Decide what pool to grab from
-    #         pool = gtpool[j] if torch.rand(1).gt(history_interval) else histpool[j]
-    #         # Grab a subchunk
-    #         i = torch.rand(1).mul(len(signposts)-1).int().item()
-    #         chunk += pool[signposts[i]:signposts[i+1]].tolist()
-    #     cor.append(chunk[:128])
-    # cor = torch.tensor(cor, dtype=torch.int).view(-1)
-
-    # cor = gt.view(-1,chunksize)
-    # resample_interval = torch.rand(cor.size(0),1)  # .sqrt()
-    # resample_interval = torch.ones_like(cor) * resample_interval
-    # resample_mask = torch.bernoulli(resample_interval).int()
-    # prev_shuffle = history.view(-1,chunksize)
-    # prev_shuffle = torch.stack([x[0,torch.randperm(chunksize)] for x in prev_shuffle.split(1)], dim=0)
-    # cor = cor*resample_mask + (1-resample_mask)*prev_shuffle
-    # reorder_interval = torch.rand(cor.size(0))  # .sqrt()
-    # n_partitions = reorder_interval.mul(chunksize).int()
-    # out = []
-    # for block,n in zip(cor.split(1), n_partitions.split(1)):
-    #     signposts = torch.randperm(chunksize)[:n].tolist()
-    #     signposts = ([0] if len(signposts)==0 or min(signposts)!=0 else []) + sorted(signposts) + [chunksize]
-    #     new_block = [block[0,signposts[i]:signposts[i+1]] for i in range(len(signposts)-1)]
-    #     new_block = [new_block[i] for i in torch.randperm(len(new_block))]
-    #     out.append(torch.cat(new_block, dim=0))
-    # cor = torch.stack(out, dim=0).view(-1)
 
     return history, gt, dec_inp, dec_history, cor
 
