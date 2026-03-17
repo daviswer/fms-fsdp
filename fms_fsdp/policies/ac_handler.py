@@ -1,5 +1,8 @@
 from functools import partial
 
+import torch
+from torch.utils.checkpoint import CheckpointPolicy, create_selective_checkpoint_contexts
+
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
     CheckpointImpl,
     apply_activation_checkpointing,
@@ -7,10 +10,29 @@ from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
 )
 
 
+# Handle custom kernels with AC baked into their backward
+ops_to_avoid_recompute = set()
+try: 
+    import fms.modules.custom_ops
+    ops_to_avoid_recompute.add(torch.ops.fms_ops.universal_attention.default)
+except (ModuleNotFoundError, ImportError, AttributeError):
+    print("[FSDP SAC] No custom kernels excluded from AC.")
+
+
+def policy_fn(ctx, op, *args, **kwargs):
+    if op in ops_to_avoid_recompute:
+        # print(f"Op: {op}", ctx.is_recompute)
+        return CheckpointPolicy.MUST_SAVE
+    return CheckpointPolicy.PREFER_RECOMPUTE
+
+
 non_reentrant_wrapper = partial(
     checkpoint_wrapper,
     checkpoint_impl=CheckpointImpl.NO_REENTRANT,
+    context_fn=partial(create_selective_checkpoint_contexts, policy_fn),
 )
+
+# Warning: when using SAC, torch.compile may cause errors
 
 
 def apply_fsdp_checkpointing(model, block, p):
