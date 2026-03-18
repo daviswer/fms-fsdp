@@ -73,7 +73,7 @@ def train(
                 run["hparams"] = asdict(cfg)
 
     model.train()
-    ddp_stats = torch.zeros(3).to(local_rank)
+    ddp_stats = torch.zeros(6).to(local_rank)
     if cp_degree > 1:
         cp_rank = rank % cp_degree
         local_len = cfg.seq_length // cp_degree
@@ -91,7 +91,8 @@ def train(
         label = label.to(local_rank)
 
         optimizer.zero_grad()
-        output = model(input, position_ids=posids)
+        output, aux = model(input, position_ids=posids)
+        aux = aux.mean(0)
         output = output.logits if hasattr(output, "logits") else output
         ce_loss = torch.nn.CrossEntropyLoss()
         loss = ce_loss(output.view(-1, output.size(-1)), label.view(-1).long())
@@ -104,6 +105,7 @@ def train(
 
         ddp_stats[0] += loss.item()
         ddp_stats[2] += 1
+        ddp_stats[3:] += aux.detach()
 
         if profiler:
             profiler.step()
@@ -112,6 +114,7 @@ def train(
             dist.all_reduce(ddp_stats, op=dist.ReduceOp.SUM)
             train_loss = ddp_stats[0] / ddp_stats[2]
             g_norm = ddp_stats[1] / ddp_stats[2]
+            auxs = ddp_stats[3:] / ddp_stats[2]
             elapsed_time = time.time() - loop_start
             world_size = int(os.environ["WORLD_SIZE"])
             new_tokens_seen = (
@@ -146,6 +149,9 @@ def train(
                 print("LR:", current_lr)
                 print("tokens seen:", total_tokens_seen)
                 print("gradient norm:", current_gnorm)
+                print("aux@.1:", auxs[0].item())
+                print("aux@.01:", auxs[1].item())
+                print("aux@.001:", auxs[2].item())
                 print("reserved memory:", reserved_mem)
                 print("allocated memory:", allocated_mem)
                 print("current step time:", current_step_time)
@@ -167,6 +173,9 @@ def train(
                         "overall throughput (token per gpu per sec)": overall_throughput,
                         "gpu reserved memory": reserved_mem,
                         "gpu allocated memory": allocated_mem,
+                        "aux@.1": auxs[0].item(),
+                        "aux@.01": auxs[1].item(),
+                        "aux@.001": auxs[2].item(),
                     }
                     if cfg.tracker == "wandb":
                         tracker_fn = wandb.log
