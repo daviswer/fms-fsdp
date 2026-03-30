@@ -96,8 +96,11 @@ def train(
         optimizer.step()
         scheduler.step()
 
+        aux = aux.min()
+        dist.all_reduce(aux, op=dist.ReduceOp.MIN)
+
         ddp_stats[0] += loss.item()
-        ddp_stats[3] += aux.item()
+        ddp_stats[3] = min(ddp_stats[3], aux.item())
         ddp_stats[2] += 1
 
         if profiler:
@@ -105,11 +108,11 @@ def train(
 
         if batch_idx % cfg.report_interval == 0:
             dist.all_reduce(ddp_stats, op=dist.ReduceOp.SUM)
+            world_size = int(os.environ["WORLD_SIZE"])
             train_loss = ddp_stats[0] / ddp_stats[2]
-            aux_loss = ddp_stats[3] / ddp_stats[2]
+            aux_loss = ddp_stats[3] / world_size
             g_norm = ddp_stats[1] / ddp_stats[2]
             elapsed_time = time.time() - loop_start
-            world_size = int(os.environ["WORLD_SIZE"])
             new_tokens_seen = (
                 (batch_idx - start_step)
                 * world_size
