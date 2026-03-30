@@ -74,6 +74,7 @@ def train(
 
     model.train()
     ddp_stats = torch.zeros(4).to(local_rank)
+    ddp_stats[3] = 1
 
     start = time.time()
     loop_start = time.time()
