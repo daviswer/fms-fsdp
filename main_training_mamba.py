@@ -108,6 +108,9 @@ def main(**kwargs):
     else:
         cp_degree = 1
 
+    if cfg.cp_over_world:
+        cp_mesh = get_1D_world_mesh(world_size)
+
     dp_degree = world_size // cp_degree
 
     # get model
