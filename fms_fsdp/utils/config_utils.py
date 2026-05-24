@@ -313,6 +313,17 @@ def get_model_config(model_variant):
             "pad_vocab_size_multiple": 16,
             "tie_embeddings": False,
         }
+    elif model_variant == "llama_1b_mamba":
+        model_config = LLaMAConfig(
+            src_vocab_size=128256,
+            emb_dim=1280,
+            nheads=16,
+            kvheads=4,
+            nlayers=32,
+            hidden_grow_factor=2.8,
+            max_expected_seq_len=4096,
+            rope_theta=500000.0,
+        )
     elif model_variant == "llama_1b":
         model_config = LLaMAConfig(
             src_vocab_size=128256,
