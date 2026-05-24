@@ -164,6 +164,21 @@ def main(**kwargs):
 
     assert len(params_with_decay) + len(params_without_decay) == len(list(model.named_parameters()))
 
+    optimizer = optim.AdamW(
+        [
+            {
+                "params": params_with_decay,
+                "weight_decay": 0.1,
+            },
+            {
+                "params": params_without_decay,
+                "weight_decay": 0.,
+            },
+        ],
+        betas = (0.9, 0.95),
+        lr = cfg.learning_rate, # cfg.learning_rate,
+    )
+
     # optionally load from checkpoint (when continue pretraining)
     checkpointer = Checkpointer(
         cfg.ckpt_save_path, 1000, cfg.sharding_strategy, rank, local_rank
