@@ -150,9 +150,19 @@ def main(**kwargs):
         model = torch.compile(model)
 
     # Optimizer
-    optimizer = optim.AdamW(
-        model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
-    )
+    # optimizer = optim.AdamW(
+    #     model.parameters(), lr=cfg.learning_rate, betas=(0.9, 0.95), weight_decay=0.1
+    # )
+    params_with_decay = []
+    params_without_decay = []
+    for name, param in model.named_parameters():
+        # print(f'{name=}')
+        if 'A_log' in name or 'D' in name or 'dt_bias' in name:
+            params_without_decay.append(param)
+        else:
+            params_with_decay.append(param)
+
+    assert len(params_with_decay) + len(params_without_decay) == len(list(model.named_parameters()))
 
     # optionally load from checkpoint (when continue pretraining)
     checkpointer = Checkpointer(
