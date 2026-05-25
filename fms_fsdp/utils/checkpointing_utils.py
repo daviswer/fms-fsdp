@@ -190,6 +190,7 @@ class Checkpointer:
         reset_stepcount=False,
         strict=True,
         is_compiled=False,
+        was_compiled=True,
     ):
         """
         Handle checkpoint loading for model/optimizer/dataloader from given path, according to arguments.
@@ -213,14 +214,16 @@ class Checkpointer:
             self.report(f"Prior checkpoint {load_path} detected.")
             model_load_time = time.time()
             if os.path.isfile(load_path):
-                checkpoint_data = torch.load(load_path, map_location="cpu")
+                checkpoint_data = torch.load(load_path, map_location="cpu").get("model_state")
+                if was_compiled:
+                    checkpoint_data = {k[10:]:v for k,v in checkpoint_data.items()}
                 if is_compiled:
                     model._orig_mod.load_state_dict(
-                        checkpoint_data.get("model_state"), strict=strict
+                        checkpoint_data, strict=strict
                     )
                 else:
                     model.load_state_dict(
-                        checkpoint_data.get("model_state"), strict=strict
+                        checkpoint_data, strict=strict
                     )
                 if self.model_auto_placement:
                     model.to("cuda")
